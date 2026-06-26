@@ -26,10 +26,10 @@ function renderStockLog() {
       <td><span class="mono" style="font-size:12px">${l.id}</span></td>
       <td>${l.date}</td>
       <td><span class="mono" style="font-size:12px">${l.itemId}</span></td>
-      <td style="font-weight:500">${l.itemName}</td>
+      <td style="font-weight:500">${escapeHtml(l.itemName)}</td>
       <td><span class="tag ${l.type === "IN" ? "tag-green" : "tag-red"}">${l.type === "IN" ? "↑ IN" : "↓ OUT"}</span></td>
       <td style="font-weight:700">${l.qty}</td>
-      <td style="color:var(--text-mid);font-size:12.5px">${l.remarks}</td>
+      <td style="color:var(--text-mid);font-size:12.5px">${escapeHtml(l.remarks)}</td>
       <td>${l.by}</td>
     </tr>`).join("");
 }
@@ -282,7 +282,7 @@ function renderTransactions() {
     return `<tr>
       <td><span class="mono" style="font-size:12px;font-weight:600">${t.id}</span></td>
       <td>${t.date}${t.time ? `<br><span style="font-size:11px;color:var(--text-soft)">${t.time}</span>` : ""}</td>
-      <td style="font-size:12.5px;color:var(--text-mid)">${t.items.map(i => `${i.name} ×${i.qty}`).join(", ")}</td>
+      <td style="font-size:12.5px;color:var(--text-mid)">${t.items.map(i => `${escapeHtml(i.name)} ×${i.qty}`).join(", ")}</td>
       <td style="font-weight:700;color:var(--green-dark)">₱${t.total.toFixed(2)}${discTag}</td>
       <td><span class="tag tag-teal">${t.paymentMethod}</span></td>
       <td>${t.cashier}</td>

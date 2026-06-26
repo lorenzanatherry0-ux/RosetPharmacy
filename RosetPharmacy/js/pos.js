@@ -3,6 +3,29 @@
             daily summary panel
 ══════════════════════════════════════════════ */
 
+/* ── FIFO WEIGHTED PRICE ──────────────────────
+   A sale can span more than one batch (e.g. 30 units left in the
+   oldest/cheaper batch, 20 more pulled from the next batch at a higher
+   price). The cart previously charged the ENTIRE quantity at the oldest
+   batch's price, undercharging for any units that actually come out of a
+   pricier batch. This computes the correct weighted-average unit price for
+   the requested quantity, walking batches in FIFO order — matching exactly
+   what checkout() will deduct. ─────────────────────────────────────────── */
+function computeFifoUnitPrice(id, qty) {
+  const batches = inventory.filter(i => i.id === id && i.qty > 0).sort((a, b) => a.batchNo - b.batchNo);
+  let remaining = qty, cost = 0;
+  for (const b of batches) {
+    if (remaining <= 0) break;
+    const take = Math.min(b.qty, remaining);
+    cost      += take * b.price;
+    remaining -= take;
+  }
+  // If qty exceeds total available stock, price the shortfall at the last
+  // known batch price rather than silently undercounting.
+  if (remaining > 0 && batches.length > 0) cost += remaining * batches[batches.length - 1].price;
+  return qty > 0 ? cost / qty : (batches[0]?.price || 0);
+}
+
 /* ── PRODUCT LOOKUP (search-driven) ─────────── */
 function renderPosGrid() {
   const q   = (document.getElementById("posSearch")?.value || "").trim();
@@ -58,7 +81,7 @@ function renderPosGrid() {
 
     return `<div class="lookup-row${oos ? " oos" : ""}">
       <div class="lookup-info">
-        <div class="lookup-name">${i.name}</div>
+        <div class="lookup-name">${escapeHtml(i.name)}</div>
         <div class="lookup-meta">
           <span class="lookup-code">${i.id}</span>
           <span class="tag tag-teal" style="font-size:10px;padding:2px 7px">${i.category}</span>
@@ -94,10 +117,11 @@ function addToCartWithQty(id) {
   if (existing) {
     const newQty = existing.qty + qty;
     if (newQty > totalAvail) { toast("warn", `Only ${totalAvail} in stock. Cart already has ${existing.qty}.`); return; }
-    existing.qty = newQty;
+    existing.qty   = newQty;
+    existing.price = computeFifoUnitPrice(id, newQty);
   } else {
     if (qty > totalAvail) { toast("warn", `Only ${totalAvail} in stock.`); return; }
-    cart.push({ id: oldest.id, name: oldest.name, price: oldest.price, qty });
+    cart.push({ id: oldest.id, name: oldest.name, price: computeFifoUnitPrice(id, qty), qty });
   }
 
   if (qtyEl) qtyEl.value = 1;
@@ -119,8 +143,9 @@ function addToCart(id) {
   if (existing) {
     if (existing.qty >= totalAvail) { toast("warn", "Not enough stock available."); return; }
     existing.qty++;
+    existing.price = computeFifoUnitPrice(id, existing.qty);
   } else {
-    cart.push({ id: oldest.id, name: oldest.name, price: oldest.price, qty: 1 });
+    cart.push({ id: oldest.id, name: oldest.name, price: computeFifoUnitPrice(id, 1), qty: 1 });
   }
   renderCart();
 }
@@ -131,7 +156,10 @@ function updateCartQty(id, delta) {
   if (!ci) return;
   ci.qty += delta;
   if (ci.qty <= 0)          { cart = cart.filter(c => c.id !== id); }
-  else if (ci.qty > totalAvail) { ci.qty = totalAvail; toast("warn", "Max stock reached."); }
+  else {
+    if (ci.qty > totalAvail) { ci.qty = totalAvail; toast("warn", "Max stock reached."); }
+    ci.price = computeFifoUnitPrice(id, ci.qty);
+  }
   renderCart();
 }
 
@@ -164,7 +192,7 @@ function renderCart() {
   el.innerHTML = cart.map(c => `
     <div class="cart-item">
       <div class="cart-item-info">
-        <div class="cart-item-name">${c.name}</div>
+        <div class="cart-item-name">${escapeHtml(c.name)}</div>
         <div class="cart-item-price">₱${c.price.toFixed(2)} each</div>
       </div>
       <div class="cart-item-controls">
@@ -285,7 +313,7 @@ function clearCart() {
 }
 
 /* ── CHECKOUT ─────────────────────────────── */
-function checkout() {
+async function checkout() {
   if (cart.length === 0) return;
 
   const method   = document.getElementById("paymentMethod")?.value || "Cash";
@@ -299,6 +327,16 @@ function checkout() {
     if (tendered < total) { toast("error", "Cash tendered is less than the total."); return; }
   }
 
+  // Re-validate stock right before committing — inventory could have
+  // changed (another sale, a stock-out) since items were added to cart.
+  for (const ci of cart) {
+    const avail = inventory.filter(i => i.id === ci.id).reduce((s, i) => s + i.qty, 0);
+    if (ci.qty > avail) {
+      toast("error", `${ci.name}: only ${avail} left in stock. Please update the cart.`);
+      return;
+    }
+  }
+
   const txnId    = "TXN" + String(transactions.length + 1).padStart(3, "0");
   const dateStr  = today();
   const timeStr  = new Date().toLocaleTimeString("en-PH", { hour: "2-digit", minute: "2-digit" });
@@ -306,6 +344,8 @@ function checkout() {
   const change   = method === "Cash" ? tendered - total : 0;
 
   // FIFO deduct inventory
+  const touchedBatches = [];
+  const newLogEntries  = [];
   cart.forEach(ci => {
     let remaining = ci.qty;
     const batches = inventory.filter(i => i.id === ci.id && i.qty > 0).sort((a, b) => a.batchNo - b.batchNo);
@@ -314,9 +354,12 @@ function checkout() {
       const deduct = Math.min(b.qty, remaining);
       b.qty    -= deduct;
       remaining -= deduct;
+      touchedBatches.push(b);
       // Log each batch deduction
       const logId = "LOG" + String(stockLog.length + 1).padStart(3, "0");
-      stockLog.push({ id: logId, date: dateStr, itemId: ci.id, itemName: ci.name, type: "OUT", qty: deduct, remarks: `POS Sale #${txnId} (Batch #${b.batchNo})`, by: currentUser.name });
+      const logEntry = { id: logId, date: dateStr, itemId: ci.id, itemName: ci.name, type: "OUT", qty: deduct, remarks: `POS Sale #${txnId} (Batch #${b.batchNo})`, by: currentUser.name };
+      stockLog.push(logEntry);
+      newLogEntries.push(logEntry);
     });
   });
 
@@ -328,6 +371,14 @@ function checkout() {
     cashier: currentUser.name, paymentMethod: method
   };
   transactions.push(txn);
+
+  // Persist to Supabase (if configured) — transaction, the deducted
+  // inventory batches, and every stock-log entry created above. This was
+  // previously missing entirely, meaning sales were never saved to the
+  // database and would vanish on refresh/another device.
+  await sbInsertTransaction(txn).catch(() => {});
+  await Promise.all(touchedBatches.map(b => sbUpsertInventoryItem(b).catch(() => {})));
+  await Promise.all(newLogEntries.map(l => sbInsertStockLog(l).catch(() => {})));
 
   showReceipt(txn);
   clearCart();
@@ -355,7 +406,7 @@ function buildReceiptHTML(t) {
     </div>
     <hr class="receipt-divider"/>
     ${t.items.map(i => `
-      <div class="receipt-row"><span>${i.name}</span><span>×${i.qty}</span></div>
+      <div class="receipt-row"><span>${escapeHtml(i.name)}</span><span>×${i.qty}</span></div>
       <div class="receipt-row" style="color:var(--text-soft)"><span></span><span>₱${(i.price * i.qty).toFixed(2)}</span></div>
     `).join("")}
     <hr class="receipt-divider"/>

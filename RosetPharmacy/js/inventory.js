@@ -44,7 +44,7 @@ function renderInventory() {
 
     return `<tr class="${rowClass}" style="${borderTop}">
       <td><span class="mono" style="font-size:12px">${i.id}</span></td>
-      <td style="font-weight:600">${i.name}${isSameGroup ? ` <span style="font-size:11px;color:var(--text-soft)">(batch)</span>` : ""}</td>
+      <td style="font-weight:600">${escapeHtml(i.name)}${isSameGroup ? ` <span style="font-size:11px;color:var(--text-soft)">(batch)</span>` : ""}</td>
       <td><span class="tag tag-teal">${i.category}</span></td>
       <td style="font-weight:700;${isOut ? "color:var(--danger)" : ""}">${i.qty}</td>
       <td>${i.unit}</td>
@@ -69,7 +69,7 @@ function renderInventory() {
 function openAddItemModal() {
   document.getElementById("itemModalTitle").textContent = "Add New Item";
   document.getElementById("editItemId").value = "";
-  ["fItemCode", "fItemName", "fItemQty", "fItemUnit", "fItemPrice", "fItemExpiry"].forEach(id => {
+  ["fItemCode", "fItemName", "fItemQty", "fItemUnit", "fItemPrice", "fItemExpiry", "fItemReorder"].forEach(id => {
     const el = document.getElementById(id);
     if (el) el.value = "";
   });
@@ -92,6 +92,7 @@ function openEditItemModal(id, batchNo) {
   document.getElementById("fItemPrice").value            = item.price;
   document.getElementById("fItemExpiry").value           = item.expiry;
   document.getElementById("fItemCat").value              = item.category;
+  document.getElementById("fItemReorder").value          = item.reorder ?? "";
 
   const nb = document.getElementById("newBatchRow");
   if (nb) {
@@ -102,7 +103,7 @@ function openEditItemModal(id, batchNo) {
 }
 
 /* ── SAVE ITEM ────────────────────────────── */
-function saveItem() {
+async function saveItem() {
   const editRowKey  = document.getElementById("editItemId").value;
   const code        = document.getElementById("fItemCode").value.trim();
   const name        = document.getElementById("fItemName").value.trim();
@@ -111,15 +112,20 @@ function saveItem() {
   const unit        = document.getElementById("fItemUnit").value.trim();
   const price       = parseFloat(document.getElementById("fItemPrice").value) || 0;
   const expiry      = document.getElementById("fItemExpiry").value;
+  const reorder     = parseInt(document.getElementById("fItemReorder").value) || 0;
   const isNewBatch  = document.getElementById("isNewStockBatch")?.checked;
 
   if (!code || !name || !unit || !expiry) { toast("error", "Please fill all required fields."); return; }
 
   if (!editRowKey) {
     if (inventory.find(i => i.id === code)) { toast("error", "Item code already exists. Use Restock to add more stock."); return; }
-    inventory.push({ id: code, name, category: cat, qty, unit, price, expiry, dateAdded: today(), batchNo: 1 });
+    const newItem = { id: code, name, category: cat, qty, unit, price, expiry, reorder, dateAdded: today(), batchNo: 1 };
+    inventory.push(newItem);
     const logId = "LOG" + String(stockLog.length + 1).padStart(3, "0");
-    stockLog.push({ id: logId, date: today(), itemId: code, itemName: name, type: "IN", qty, remarks: "Initial stock entry", by: currentUser.name });
+    const logEntry = { id: logId, date: today(), itemId: code, itemName: name, type: "IN", qty, remarks: "Initial stock entry", by: currentUser.name };
+    stockLog.push(logEntry);
+    await sbUpsertInventoryItem(newItem).catch(() => {});
+    await sbInsertStockLog(logEntry).catch(() => {});
     toast("success", "Item added successfully.");
   } else {
     const [editId, editBatch] = editRowKey.split("::");
@@ -128,14 +134,19 @@ function saveItem() {
     if (isNewBatch) {
       const existing = inventory.filter(i => i.id === editId);
       const maxBatch = existing.reduce((m, i) => Math.max(m, i.batchNo), 0);
-      inventory.push({ id: editId, name, category: cat, qty, unit, price, expiry, dateAdded: today(), batchNo: maxBatch + 1 });
+      const newBatch = { id: editId, name, category: cat, qty, unit, price, expiry, reorder, dateAdded: today(), batchNo: maxBatch + 1 };
+      inventory.push(newBatch);
       const logId = "LOG" + String(stockLog.length + 1).padStart(3, "0");
-      stockLog.push({ id: logId, date: today(), itemId: editId, itemName: name, type: "IN", qty, remarks: `New stock batch #${maxBatch + 1}`, by: currentUser.name });
+      const logEntry = { id: logId, date: today(), itemId: editId, itemName: name, type: "IN", qty, remarks: `New stock batch #${maxBatch + 1}`, by: currentUser.name };
+      stockLog.push(logEntry);
+      await sbUpsertInventoryItem(newBatch).catch(() => {});
+      await sbInsertStockLog(logEntry).catch(() => {});
       toast("success", `New stock batch added for ${name}.`);
     } else {
       const idx = inventory.findIndex(i => i.id === editId && i.batchNo === batchNum);
       if (idx > -1) {
-        inventory[idx] = { ...inventory[idx], name, category: cat, unit, price, expiry };
+        inventory[idx] = { ...inventory[idx], name, category: cat, unit, price, expiry, reorder };
+        await sbUpsertInventoryItem(inventory[idx]).catch(() => {});
         toast("success", "Item details updated. Quantity unchanged.");
       }
     }
@@ -156,8 +167,9 @@ function confirmDeleteItem(id, batchNo) {
   openModal("confirmModal");
 }
 
-function deleteItem(id, batchNo) {
+async function deleteItem(id, batchNo) {
   inventory = inventory.filter(i => !(i.id === id && i.batchNo === batchNo));
+  await sbDeleteInventoryBatch(id, batchNo).catch(() => {});
   renderInventory();
   renderPosGrid();
   renderDashboard();

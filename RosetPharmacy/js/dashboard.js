@@ -63,9 +63,15 @@ function renderDashboard() {
   itemIds.forEach(id => {
     const batches  = inventory.filter(i => i.id === id);
     const totalQty = batches.reduce((s, i) => s + i.qty, 0);
-    const name     = batches[0]?.name    || id;
+    const name     = escapeHtml(batches[0]?.name || id);
 
     if (totalQty === 0) alerts.push({ critical: true,  text: `<strong>${name}</strong> is out of stock` });
+    else {
+      const reorder = batches[0]?.reorder || 0;
+      if (reorder > 0 && totalQty <= reorder) {
+        alerts.push({ critical: false, text: `<strong>${name}</strong> is low on stock (${totalQty} left, reorder at ${reorder})` });
+      }
+    }
 
     batches.forEach(b => {
       const diff = Math.ceil((new Date(b.expiry) - new Date()) / (1000 * 60 * 60 * 24));

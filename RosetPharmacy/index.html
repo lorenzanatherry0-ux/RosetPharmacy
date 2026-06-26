@@ -720,6 +720,10 @@
           <label>Price (₱)</label>
           <input type="number" id="fItemPrice" min="0" step="0.01" placeholder="0.00"/>
         </div>
+        <div class="form-group-m">
+          <label>Reorder Level</label>
+          <input type="number" id="fItemReorder" min="0" placeholder="e.g. 20"/>
+        </div>
       </div>
       <div class="form-group-m">
         <label>Expiry Date</label>
@@ -959,7 +963,7 @@
           <button onclick="_hideCsvPane()" style="background:none;border:none;cursor:pointer;color:var(--text-soft);font-size:18px;line-height:1">×</button>
         </div>
         <div style="font-size:12px;color:var(--text-mid);margin-bottom:10px;line-height:1.6">
-          <strong>New Items format:</strong> <code style="background:#fff;padding:1px 6px;border-radius:4px;font-size:11px">code, name, category, qty, unit, price, expiry</code><br>
+          <strong>New Items format:</strong> <code style="background:#fff;padding:1px 6px;border-radius:4px;font-size:11px">code, name, category, qty, unit, price, reorder, expiry</code><br>
           <strong>Restock format:</strong> <code style="background:#fff;padding:1px 6px;border-radius:4px;font-size:11px">code, qty, expiry, remarks</code>
           &nbsp;— the first row can be a header (it will be skipped automatically).
         </div>

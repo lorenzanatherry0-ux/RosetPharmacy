@@ -50,16 +50,25 @@ create table if not exists stock_log (
   by_user    text not null
 );
 
--- Enable Row Level Security (optional but recommended):
--- alter table inventory    enable row level security;
--- alter table transactions enable row level security;
--- alter table stock_log    enable row level security;
+-- Enable Row Level Security and allow the anon key full access.
+-- NOTE: this matches the app's CURRENT auth model (client-side role
+-- check only, no Supabase Auth) — anyone with the anon key can read/write
+-- these tables. This is fine for an internal/single-location pharmacy on a
+-- private link, but if you ever expose this publicly, migrate to Supabase
+-- Auth and replace these policies with auth.uid()-scoped ones.
+alter table inventory    enable row level security;
+alter table transactions enable row level security;
+alter table stock_log    enable row level security;
+
+create policy "anon_full_access_inventory"    on inventory    for all using (true) with check (true);
+create policy "anon_full_access_transactions" on transactions for all using (true) with check (true);
+create policy "anon_full_access_stock_log"    on stock_log    for all using (true) with check (true);
 
 */
 
 /* ══ CONFIGURATION — fill these in ══ */
-const SUPABASE_URL      = "https://jmlavfobqydgyiwatqis.supabase.co";   // e.g. "https://xyzxyz.supabase.co"
-const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImptbGF2Zm9icXlkZ3lpd2F0cWlzIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzU3MzMzMTcsImV4cCI6MjA5MTMwOTMxN30.xhxYAWMk0RWS55u0luHM49WXqdbt7K-GJR3zwK06Lc8";   // your project's anon/public key
+const SUPABASE_URL      = "https://exouewpedvxqlhcdltjw.supabase.co";   // e.g. "https://xyzxyz.supabase.co"
+const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImV4b3Vld3BlZHZ4cWxoY2RsdGp3Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODIzOTk5NjcsImV4cCI6MjA5Nzk3NTk2N30.leaM3D0hlbc3z5mth5GOYxScwCPiuRh_7jLvaOO3SmQ";   // your project's anon/public key
 
 /* ══════════════════════════════════════════════
    CORE FETCH HELPER
@@ -106,6 +115,7 @@ function toDbInventory(item) {
     unit:       item.unit,
     price:      item.price,
     expiry:     item.expiry || null,
+    reorder:    item.reorder || 0,
     date_added: item.dateAdded || null,
   };
 }
@@ -120,6 +130,7 @@ function fromDbInventory(row) {
     unit:      row.unit,
     price:     parseFloat(row.price),
     expiry:    row.expiry,
+    reorder:   row.reorder || 0,
     dateAdded: row.date_added,
   };
 }
@@ -204,6 +215,14 @@ async function sbLoadAll() {
     if (logRows)  stockLog      = logRows.map(fromDbStockLog);
 
     showSbStatus("ok");
+
+    // Guard: if Supabase is reachable but its tables are completely empty
+    // (e.g. first-ever connection before any sync), warn instead of silently
+    // running the POS with a blank inventory.
+    if (invRows && invRows.length === 0) {
+      setTimeout(() => toast("warn", "Connected to Supabase, but inventory table is empty. Use the DB status chip (sidebar) to push your local data via Full Sync."), 500);
+    }
+
     return true;
   } catch (e) {
     console.error("[Supabase] loadAll error:", e);
