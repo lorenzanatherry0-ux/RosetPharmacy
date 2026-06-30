@@ -50,6 +50,7 @@ function openStockModal() {
   document.getElementById("fStockUnit").value    = "";
   document.getElementById("fStockQty").value     = "";
   document.getElementById("fStockPrice").value   = "";
+  document.getElementById("fStockCost").value    = "";
   document.getElementById("fStockExpiry").value  = "";
   document.getElementById("fStockRemarks").value = "";
 
@@ -57,15 +58,17 @@ function openStockModal() {
   _stockSetStatus("idle");
   _stockUpdateTypeUI("IN");
 
-  // Build datalist for code autocomplete
-  _buildStockCodeDatalist();
+  // Build datalist for item-name autocomplete (search is name-driven)
+  _buildStockNameDatalist();
 
   openModal("stockModal");
 }
 
-/* Populate datalist with all known item codes */
-function _buildStockCodeDatalist() {
-  const dl = document.getElementById("stockCodeList");
+/* Populate datalist with all known item names (search is now driven by
+   Item Name — Item Code remains visible as a read-only identifier next to
+   it, but is no longer what the cashier/manager types to find an item). */
+function _buildStockNameDatalist() {
+  const dl = document.getElementById("stockNameList");
   if (!dl) return;
   const seen = new Set();
   dl.innerHTML = "";
@@ -73,39 +76,46 @@ function _buildStockCodeDatalist() {
     if (!seen.has(it.id)) {
       seen.add(it.id);
       const o = document.createElement("option");
-      o.value       = it.id;
-      o.label       = it.name;
+      o.value = it.name;
+      o.label = it.id;
       dl.appendChild(o);
     }
   });
 }
 
-/* Called on every keystroke in the Item Code field */
-function onStockCodeInput(raw) {
-  const code  = raw.trim().toUpperCase();
-  const codeEl = document.getElementById("fStockCode");
-  if (codeEl) codeEl.value = code;
+/* Called on every keystroke in the Item Name field (now the primary
+   search/edit field for restocking — Item Code is auto-filled and kept
+   read-only purely for identification). */
+function onStockNameInput(raw) {
+  const typed  = raw.trim();
+  const nameEl = document.getElementById("fStockName");
+  if (nameEl) nameEl.value = raw;
 
   // Clear computed fields first
-  document.getElementById("fStockName").value  = "";
-  document.getElementById("fStockUnit").value  = "";
+  document.getElementById("fStockCode").value = "";
+  document.getElementById("fStockUnit").value = "";
   _stockComputeTotal();
 
-  if (!code) { _stockSetStatus("idle"); return; }
+  if (!typed) { _stockSetStatus("idle"); return; }
 
-  const match = inventory.find(i => i.id === code);
+  // Match by exact name (case-insensitive) — the datalist suggests exact
+  // names, so once the cashier picks/types a real name this resolves to
+  // exactly one item, the same way code-matching used to.
+  const match = inventory.find(i => i.name.toLowerCase() === typed.toLowerCase());
   if (!match) {
     _stockSetStatus("notfound");
     return;
   }
 
   // Autofill
-  document.getElementById("fStockName").value  = match.name;
-  document.getElementById("fStockUnit").value  = match.unit;
+  document.getElementById("fStockCode").value = match.id;
+  document.getElementById("fStockUnit").value = match.unit;
 
-  // Pre-fill price only if empty (let user change it)
+  // Pre-fill price/cost only if empty (let user change it)
   const priceEl = document.getElementById("fStockPrice");
   if (priceEl && !priceEl.value) priceEl.value = match.price.toFixed(2);
+  const costEl = document.getElementById("fStockCost");
+  if (costEl && !costEl.value) costEl.value = (match.cost ?? 0).toFixed(2);
 
   _stockSetStatus("found", match);
   _stockComputeTotal();
@@ -113,7 +123,7 @@ function onStockCodeInput(raw) {
 
 /* Status indicator: idle | found | notfound */
 function _stockSetStatus(state, match) {
-  const icon    = document.getElementById("fStockCodeIcon");
+  const icon    = document.getElementById("fStockNameIcon");
   const banner  = document.getElementById("fStockInfoBanner");
   const priceRow = document.getElementById("fStockPriceRow");
   const totalBox = document.getElementById("fStockTotalBox");
@@ -133,7 +143,7 @@ function _stockSetStatus(state, match) {
       banner.style.background  = "var(--danger-light)";
       banner.style.borderColor = "var(--danger)";
       banner.style.color       = "var(--danger)";
-      banner.textContent = "Item code not found in inventory.";
+      banner.textContent = "No item with that name found in inventory. Use “Add Item” to create a new item first.";
     }
     if (totalBox) totalBox.style.display = "none";
     return;
@@ -160,17 +170,20 @@ function onStockTypeChange() {
 
 function _stockUpdateTypeUI(type) {
   const priceRow  = document.getElementById("fStockPriceRow");
+  const costRow   = document.getElementById("fStockCostRow");
   const totalBox  = document.getElementById("fStockTotalBox");
   const expiryRow = document.getElementById("fStockExpiryRow");
   const qtyLabel  = document.getElementById("fStockQtyLabel");
 
   if (type === "OUT") {
     if (priceRow)  priceRow.style.display  = "none";
+    if (costRow)   costRow.style.display   = "none";
     if (totalBox)  totalBox.style.display  = "none";
     if (expiryRow) expiryRow.style.display = "none";
     if (qtyLabel)  qtyLabel.textContent    = "Quantity to Remove";
   } else {
     if (priceRow)  priceRow.style.display  = "";
+    if (costRow)   costRow.style.display   = "";
     if (expiryRow) expiryRow.style.display = "";
     if (qtyLabel)  qtyLabel.textContent    = "Quantity Received";
     _stockComputeTotal();
@@ -208,11 +221,11 @@ async function saveStockMovement() {
   const qty     = parseInt(document.getElementById("fStockQty").value) || 0;
   const remarks = document.getElementById("fStockRemarks").value.trim();
 
-  if (!code)     { toast("error", "Please enter an item code."); return; }
+  if (!code)     { toast("error", "Please select a valid item by name first."); return; }
   if (qty <= 0)  { toast("error", "Quantity must be greater than 0."); return; }
 
   const itemBatches = inventory.filter(i => i.id === code).sort((a, b) => a.batchNo - b.batchNo);
-  if (itemBatches.length === 0) { toast("error", `Item code "${code}" not found.`); return; }
+  if (itemBatches.length === 0) { toast("error", `Item "${code}" not found.`); return; }
 
   if (type === "OUT") {
     const totalQty = itemBatches.reduce((s, i) => s + i.qty, 0);
@@ -225,15 +238,16 @@ async function saveStockMovement() {
       remaining   -= deduct;
     });
   } else {
-    // Stock IN — new FIFO batch with potentially updated price
-    const newPrice = parseFloat(document.getElementById("fStockPrice")?.value) || itemBatches[0].price;
+    // Stock IN — new FIFO batch with potentially updated price/cost
+    const newPrice  = parseFloat(document.getElementById("fStockPrice")?.value) || itemBatches[0].price;
+    const newCost   = parseFloat(document.getElementById("fStockCost")?.value);
     const newExpiry = document.getElementById("fStockExpiry")?.value || itemBatches[0].expiry;
     const maxBatch  = itemBatches.reduce((m, i) => Math.max(m, i.batchNo), 0);
     const ref       = itemBatches[0];
 
     const newBatch = {
       id: ref.id, name: ref.name, category: ref.category, unit: ref.unit,
-      price: newPrice, expiry: newExpiry,
+      price: newPrice, cost: !isNaN(newCost) ? newCost : (ref.cost ?? 0), expiry: newExpiry,
       qty, dateAdded: date, batchNo: maxBatch + 1
     };
     inventory.push(newBatch);
@@ -257,11 +271,19 @@ async function saveStockMovement() {
   toast("success", `Stock ${type} recorded for ${itemBatches[0].name}.`);
 }
 
-/* ── TRANSACTIONS ─────────────────────────── */
+/* ── TRANSACTIONS ─────────────────────────────────────────
+   Daily-reset view: by default this only shows the selected date's
+   transactions (defaults to "today" on login — see initTransactionsView()
+   in auth.js). A date picker lets the manager pull up any previous day,
+   and "All Dates" clears the filter to show full history.
+   Profit is shown ONLY here — never on the POS screen. ───────────────── */
 function renderTransactions() {
-  const q = (document.getElementById("txnSearch")?.value || "").toLowerCase();
+  const q          = (document.getElementById("txnSearch")?.value || "").toLowerCase();
+  const dateFilter = document.getElementById("txnDateFilter")?.value || "";
 
-  const txns = [...transactions].reverse().filter(t =>
+  let txns = [...transactions].reverse();
+  if (dateFilter) txns = txns.filter(t => t.date === dateFilter);
+  txns = txns.filter(t =>
     !q ||
     t.id.toLowerCase().includes(q) ||
     t.cashier.toLowerCase().includes(q) ||
@@ -269,24 +291,54 @@ function renderTransactions() {
     t.items.some(i => i.name.toLowerCase().includes(q))
   );
 
+  // Summary strip for the current filtered view (revenue + profit)
+  const sumEl = document.getElementById("txnSummary");
+  if (sumEl) {
+    const rev    = txns.reduce((s, t) => s + t.total, 0);
+    const profit = txns.reduce((s, t) => s + (t.profit ?? 0), 0);
+    sumEl.innerHTML = txns.length === 0 ? "" : `
+      <span><strong>${txns.length}</strong> transaction${txns.length !== 1 ? "s" : ""}</span>
+      <span>Revenue: <strong style="color:var(--green-dark)">₱${rev.toFixed(2)}</strong></span>
+      <span>Profit: <strong style="color:var(--teal-dark)">₱${profit.toFixed(2)}</strong></span>`;
+  }
+
   const tbody = document.getElementById("transactionTable");
   if (!tbody) return;
 
   if (txns.length === 0) {
-    tbody.innerHTML = `<tr><td colspan="7" style="text-align:center;padding:40px;color:var(--text-soft)">No transactions yet.</td></tr>`;
+    tbody.innerHTML = `<tr><td colspan="8" style="text-align:center;padding:40px;color:var(--text-soft)">No transactions ${dateFilter ? "for " + formatDisplayDate(dateFilter) : "yet"}.</td></tr>`;
     return;
   }
 
   tbody.innerHTML = txns.map(t => {
     const discTag = t.discountPct > 0 ? `<span class="tag tag-warn" style="font-size:10px;margin-left:4px">${t.discountPct}% off</span>` : "";
+    const profit  = t.profit ?? 0;
     return `<tr>
       <td><span class="mono" style="font-size:12px;font-weight:600">${t.id}</span></td>
       <td>${t.date}${t.time ? `<br><span style="font-size:11px;color:var(--text-soft)">${t.time}</span>` : ""}</td>
       <td style="font-size:12.5px;color:var(--text-mid)">${t.items.map(i => `${escapeHtml(i.name)} ×${i.qty}`).join(", ")}</td>
       <td style="font-weight:700;color:var(--green-dark)">₱${t.total.toFixed(2)}${discTag}</td>
+      <td style="font-weight:700;color:var(--teal-dark)">₱${profit.toFixed(2)}</td>
       <td><span class="tag tag-teal">${t.paymentMethod}</span></td>
       <td>${t.cashier}</td>
       <td><button class="btn btn-ghost btn-sm" onclick="viewTransaction('${t.id}')">View</button></td>
     </tr>`;
   }).join("");
+}
+
+/* Date-picker controls for the Transaction History page */
+function onTxnDateInputChange() {
+  const el = document.getElementById("txnDateFilter");
+  if (el) el.dataset.userCleared = el.value ? "0" : "1";
+  renderTransactions();
+}
+function setTxnDateToday() {
+  const el = document.getElementById("txnDateFilter");
+  if (el) { el.value = today(); delete el.dataset.userCleared; }
+  renderTransactions();
+}
+function clearTxnDateFilter() {
+  const el = document.getElementById("txnDateFilter");
+  if (el) { el.value = ""; el.dataset.userCleared = "1"; }
+  renderTransactions();
 }

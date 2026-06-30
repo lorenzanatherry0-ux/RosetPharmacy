@@ -1,21 +1,122 @@
 /* ══════════════════════════════════════════════
-   report.js — Inventory & Sales Reports
-   Date-range filterable reports for manager view
+   report.js — Reports, organized into categories
+   ──────────────────────────────────────────────
+   Redesign goals (per requirements):
+   • Reports are grouped into separate categories (cards/folders), not all
+     dumped on screen at once.
+   • Nothing renders by default — a report only appears after the user
+     clicks "Generate Report" for that category.
+   • Categories: POS Detail Report (Daily Sales), Sales Report Summary
+     (Per Day), Inventory Report (with category filter/sort), and Stock
+     Movement Report.
 ══════════════════════════════════════════════ */
 
-/* ── INIT ── */
+let currentReportCategory = null;
+
+/* ── INIT — always lands on the category picker, nothing pre-rendered ── */
 function initReports() {
-  // Default date range: first day of current month → today
+  closeReportCategory();
+
+  // Populate the Inventory Report's category filter from the live list
+  const catSel = document.getElementById("invCatReportFilter");
+  if (catSel && catSel.options.length <= 1) {
+    CATEGORIES.forEach(c => {
+      const o = document.createElement("option");
+      o.value = c; o.textContent = c;
+      catSel.appendChild(o);
+    });
+  }
+
+  // Sensible defaults for each category's date controls, set ahead of time
+  // so the user doesn't have to fill them in before their first Generate.
   const now   = new Date();
   const first = new Date(now.getFullYear(), now.getMonth(), 1).toISOString().split("T")[0];
   const todayStr = today();
-  document.getElementById("rptFrom").value = first;
-  document.getElementById("rptTo").value   = todayStr;
-  renderReports();
+
+  setVal("posdetailDate", todayStr);
+  setVal("rptFrom", first);
+  setVal("rptTo", todayStr);
+  setVal("invFrom", first);
+  setVal("invTo", todayStr);
+  setVal("moveFrom", first);
+  setVal("moveTo", todayStr);
+
+  highlightPreset("salessummary", "month");
 }
 
-/* ── QUICK PRESETS ── */
-function setReportPreset(preset) {
+function setVal(id, val) { const el = document.getElementById(id); if (el) el.value = val; }
+
+/* ══════════════════════════════════════════════
+   CATEGORY NAVIGATION (folder/card UI)
+══════════════════════════════════════════════ */
+function openReportCategory(cat) {
+  currentReportCategory = cat;
+
+  document.getElementById("rptCatGrid").classList.add("hidden");
+  document.getElementById("rptDetailView").classList.remove("hidden");
+  document.getElementById("rptPrintBtn").classList.add("hidden");
+
+  // Show only this category's controls bar
+  document.querySelectorAll(".rpt-controls-bar").forEach(el =>
+    el.classList.toggle("hidden", el.dataset.controls !== cat)
+  );
+
+  // Hide every report panel and show the "not generated yet" empty state
+  document.querySelectorAll(".rpt-panel").forEach(p => p.classList.remove("active"));
+  document.getElementById("rptEmptyState").classList.remove("hidden");
+
+  document.getElementById("rptDetailTitle").textContent = REPORT_LABELS[cat]?.title || "Report";
+  document.getElementById("rptDetailSub").textContent   = REPORT_LABELS[cat]?.sub   || "";
+}
+
+function closeReportCategory() {
+  currentReportCategory = null;
+  document.getElementById("rptCatGrid").classList.remove("hidden");
+  document.getElementById("rptDetailView").classList.add("hidden");
+}
+
+const REPORT_LABELS = {
+  posdetail:     { title: "POS Detail Report",     sub: "Daily Sales — full transaction journal for one selected day" },
+  salessummary:  { title: "Sales Report Summary",  sub: "Per Day — aggregated totals across a date range" },
+  inventory:     { title: "Inventory Report",      sub: "Stock levels & value — filter / sort / generate per category" },
+  movement:      { title: "Stock Movement Report", sub: "Stock in / out activity log over a date range" },
+};
+
+/* ── GENERATE (only entry point that actually renders a report) ── */
+function generateReport() {
+  if (!currentReportCategory) return;
+
+  if (currentReportCategory === "posdetail") {
+    const date = document.getElementById("posdetailDate").value;
+    if (!date) { toast("warn", "Pick a date first."); return; }
+    renderPosDetailReport(date);
+  } else if (currentReportCategory === "salessummary") {
+    const from = document.getElementById("rptFrom").value;
+    const to   = document.getElementById("rptTo").value;
+    if (!from || !to) { toast("warn", "Pick a date range first."); return; }
+    renderSalesSummaryReport(from, to);
+  } else if (currentReportCategory === "inventory") {
+    const from = document.getElementById("invFrom").value;
+    const to   = document.getElementById("invTo").value;
+    const cat  = document.getElementById("invCatReportFilter")?.value || "";
+    const sort = document.getElementById("invSortBy")?.value || "value";
+    renderInventoryReport(from, to, cat, sort);
+  } else if (currentReportCategory === "movement") {
+    const from = document.getElementById("moveFrom").value;
+    const to   = document.getElementById("moveTo").value;
+    if (!from || !to) { toast("warn", "Pick a date range first."); return; }
+    renderMovementReport(from, to);
+  }
+
+  document.getElementById("rptEmptyState").classList.add("hidden");
+  document.querySelectorAll(".rpt-panel").forEach(p =>
+    p.classList.toggle("active", p.dataset.panel === currentReportCategory)
+  );
+  document.getElementById("rptPrintBtn").classList.remove("hidden");
+}
+
+/* ── QUICK PRESETS (Sales Summary + Inventory + Movement all reuse this) ── */
+function setReportPreset(scope, preset) {
   const now = new Date();
   let from, to = today();
 
@@ -37,56 +138,82 @@ function setReportPreset(preset) {
     from = new Date(now.getFullYear(), 0, 1).toISOString().split("T")[0];
   }
 
-  document.getElementById("rptFrom").value = from;
-  document.getElementById("rptTo").value   = to;
+  const prefix = { salessummary: "rpt", inventory: "inv", movement: "move" }[scope];
+  setVal(`${prefix}From`, from);
+  setVal(`${prefix}To`, to);
+  highlightPreset(scope, preset);
+}
 
-  // Highlight active preset
-  document.querySelectorAll(".rpt-preset-btn").forEach(b =>
+function highlightPreset(scope, preset) {
+  document.querySelectorAll(`.rpt-preset-btn[data-scope="${scope}"]`).forEach(b =>
     b.classList.toggle("active", b.dataset.preset === preset)
   );
-  renderReports();
-}
-
-/* ── MAIN RENDER ── */
-function renderReports() {
-  const from = document.getElementById("rptFrom").value;
-  const to   = document.getElementById("rptTo").value;
-  if (!from || !to) return;
-
-  const tab = document.querySelector(".rpt-tab-btn.active")?.dataset.tab || "sales";
-  if (tab === "sales")     renderSalesReport(from, to);
-  else if (tab === "inventory") renderInventoryReport(from, to);
-  else if (tab === "movement")  renderMovementReport(from, to);
-
-  // Update range label
-  document.getElementById("rptRangeLabel").textContent =
-    `${formatDisplayDate(from)} — ${formatDisplayDate(to)}`;
-}
-
-function switchReportTab(tab) {
-  document.querySelectorAll(".rpt-tab-btn").forEach(b =>
-    b.classList.toggle("active", b.dataset.tab === tab)
-  );
-  document.querySelectorAll(".rpt-panel").forEach(p =>
-    p.classList.toggle("active", p.dataset.panel === tab)
-  );
-  renderReports();
 }
 
 /* ══════════════════════════════════════════════
-   SALES REPORT
+   1) POS DETAIL REPORT (Daily Sales) — single day
 ══════════════════════════════════════════════ */
-function renderSalesReport(from, to) {
+function renderPosDetailReport(date) {
+  const dayTxns = transactions.filter(t => t.date === date);
+
+  const revenue  = dayTxns.reduce((s, t) => s + t.total, 0);
+  const profit   = dayTxns.reduce((s, t) => s + (t.profit ?? 0), 0);
+  const discount = dayTxns.reduce((s, t) => s + (t.discAmt || 0), 0);
+  const count    = dayTxns.length;
+
+  document.getElementById("posdetailKpi").innerHTML = `
+    <div class="rpt-kpi-card rpt-kpi-green">
+      <div class="rpt-kpi-icon">₱</div>
+      <div class="rpt-kpi-val">₱${revenue.toFixed(2)}</div>
+      <div class="rpt-kpi-lbl">Total Revenue</div>
+    </div>
+    <div class="rpt-kpi-card">
+      <div class="rpt-kpi-icon">🧾</div>
+      <div class="rpt-kpi-val">${count}</div>
+      <div class="rpt-kpi-lbl">Transactions</div>
+    </div>
+    <div class="rpt-kpi-card rpt-kpi-teal">
+      <div class="rpt-kpi-icon">📈</div>
+      <div class="rpt-kpi-val">₱${profit.toFixed(2)}</div>
+      <div class="rpt-kpi-lbl">Profit</div>
+    </div>
+    <div class="rpt-kpi-card rpt-kpi-warn">
+      <div class="rpt-kpi-icon">🏷</div>
+      <div class="rpt-kpi-val">₱${discount.toFixed(2)}</div>
+      <div class="rpt-kpi-lbl">Discounts Given</div>
+    </div>`;
+
+  document.getElementById("posdetailDateLabel").textContent = formatDisplayDate(date);
+
+  const tbody = document.getElementById("posdetailTbl");
+  const sorted = [...dayTxns].reverse();
+  if (sorted.length === 0) {
+    tbody.innerHTML = `<tr><td colspan="8" class="rpt-empty">No transactions on ${formatDisplayDate(date)}.</td></tr>`;
+    return;
+  }
+  tbody.innerHTML = sorted.map(t => `
+    <tr>
+      <td><span class="mono" style="font-size:12px">${t.id}</span></td>
+      <td>${t.time || "—"}</td>
+      <td style="font-size:12px;color:var(--text-mid);max-width:220px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${t.items.map(i=>`${i.name}×${i.qty}`).join(", ")}</td>
+      <td><span class="tag tag-teal" style="font-size:11px">${t.paymentMethod}</span></td>
+      <td>${t.discountPct > 0 ? `<span class="tag tag-warn" style="font-size:11px">${t.discountPct}%</span>` : "—"}</td>
+      <td style="font-weight:700;color:var(--green-dark)">₱${t.total.toFixed(2)}</td>
+      <td style="font-weight:700;color:var(--teal-dark)">₱${(t.profit ?? 0).toFixed(2)}</td>
+      <td style="font-size:12px;color:var(--text-soft)">${t.cashier}</td>
+    </tr>`).join("");
+}
+
+/* ══════════════════════════════════════════════
+   2) SALES REPORT SUMMARY (Per Day) — date range
+══════════════════════════════════════════════ */
+function renderSalesSummaryReport(from, to) {
   const filtered = transactions.filter(t => t.date >= from && t.date <= to);
 
-  // ── KPI row ──
   const totalRevenue = filtered.reduce((s, t) => s + t.total, 0);
   const totalTxns    = filtered.length;
   const totalDisc    = filtered.reduce((s, t) => s + (t.discAmt || 0), 0);
   const avgTxn       = totalTxns > 0 ? totalRevenue / totalTxns : 0;
-  const cashTxns     = filtered.filter(t => t.paymentMethod === "Cash").length;
-  const gcashTxns    = filtered.filter(t => t.paymentMethod === "GCash").length;
-  const cardTxns     = filtered.filter(t => t.paymentMethod === "Card").length;
 
   document.getElementById("rptSalesKpi").innerHTML = `
     <div class="rpt-kpi-card rpt-kpi-green">
@@ -110,42 +237,47 @@ function renderSalesReport(from, to) {
       <div class="rpt-kpi-lbl">Total Discounts Given</div>
     </div>`;
 
-  // ── Payment method breakdown ──
-  document.getElementById("rptPaymentBreakdown").innerHTML = `
+  // ── Payment method breakdown — built dynamically from whatever payment
+  // methods actually appear in the data (the POS itself now only ever
+  // produces "Cash", but historical/synced data may have other methods).
+  const methods = {};
+  filtered.forEach(t => {
+    const m = t.paymentMethod || "Cash";
+    if (!methods[m]) methods[m] = { count: 0, total: 0 };
+    methods[m].count += 1;
+    methods[m].total += t.total;
+  });
+  const dotClasses = ["rpt-dot-teal", "rpt-dot-blue", "rpt-dot-purple"];
+  const methodEntries = Object.entries(methods).sort((a, b) => b[1].total - a[1].total);
+  document.getElementById("rptPaymentBreakdown").innerHTML = methodEntries.length === 0
+    ? `<div class="rpt-empty" style="padding:24px">No sales in this period.</div>`
+    : methodEntries.map(([name, d], idx) => `
     <div class="rpt-breakdown-row">
-      <span class="rpt-bk-label"><span class="rpt-dot rpt-dot-teal"></span>Cash</span>
-      <span class="rpt-bk-count">${cashTxns} txns</span>
-      <span class="rpt-bk-amt">₱${filtered.filter(t=>t.paymentMethod==="Cash").reduce((s,t)=>s+t.total,0).toFixed(2)}</span>
-    </div>
-    <div class="rpt-breakdown-row">
-      <span class="rpt-bk-label"><span class="rpt-dot rpt-dot-blue"></span>GCash</span>
-      <span class="rpt-bk-count">${gcashTxns} txns</span>
-      <span class="rpt-bk-amt">₱${filtered.filter(t=>t.paymentMethod==="GCash").reduce((s,t)=>s+t.total,0).toFixed(2)}</span>
-    </div>
-    <div class="rpt-breakdown-row">
-      <span class="rpt-bk-label"><span class="rpt-dot rpt-dot-purple"></span>Card</span>
-      <span class="rpt-bk-count">${cardTxns} txns</span>
-      <span class="rpt-bk-amt">₱${filtered.filter(t=>t.paymentMethod==="Card").reduce((s,t)=>s+t.total,0).toFixed(2)}</span>
-    </div>`;
+      <span class="rpt-bk-label"><span class="rpt-dot ${dotClasses[idx % dotClasses.length]}"></span>${name}</span>
+      <span class="rpt-bk-count">${d.count} txns</span>
+      <span class="rpt-bk-amt">₱${d.total.toFixed(2)}</span>
+    </div>`).join("");
 
   // ── Daily sales table ──
   const byDay = {};
   filtered.forEach(t => {
-    if (!byDay[t.date]) byDay[t.date] = { revenue: 0, txns: 0 };
+    if (!byDay[t.date]) byDay[t.date] = { revenue: 0, txns: 0, profit: 0 };
     byDay[t.date].revenue += t.total;
     byDay[t.date].txns    += 1;
+    byDay[t.date].profit  += (t.profit ?? 0);
   });
   const dayRows = Object.keys(byDay).sort().reverse();
 
   const dailyTbody = document.getElementById("rptDailySalesTbl");
   if (dayRows.length === 0) {
-    dailyTbody.innerHTML = `<tr><td colspan="4" class="rpt-empty">No sales in this period.</td></tr>`;
+    dailyTbody.innerHTML = `<tr><td colspan="5" class="rpt-empty">No sales in this period.</td></tr>`;
   } else {
     dailyTbody.innerHTML = dayRows.map(d => `
       <tr>
         <td>${formatDisplayDate(d)}</td>
         <td>${byDay[d].txns}</td>
         <td style="font-weight:700;color:var(--green-dark)">₱${byDay[d].revenue.toFixed(2)}</td>
+        <td style="color:var(--teal-dark);font-weight:600">₱${byDay[d].profit.toFixed(2)}</td>
         <td style="color:var(--text-soft)">₱${(byDay[d].revenue/byDay[d].txns).toFixed(2)}</td>
       </tr>`).join("");
   }
@@ -175,37 +307,23 @@ function renderSalesReport(from, to) {
         <td style="text-align:right;font-weight:700;color:var(--green-dark)">₱${d.revenue.toFixed(2)}</td>
       </tr>`).join("");
   }
-
-  // ── Transaction list ──
-  const txnTbody = document.getElementById("rptTxnListTbl");
-  const sortedTxns = [...filtered].reverse();
-  if (sortedTxns.length === 0) {
-    txnTbody.innerHTML = `<tr><td colspan="7" class="rpt-empty">No transactions in this date range.</td></tr>`;
-  } else {
-    txnTbody.innerHTML = sortedTxns.map(t => `
-      <tr>
-        <td><span class="mono" style="font-size:12px">${t.id}</span></td>
-        <td>${t.date}${t.time ? `<span style="display:block;font-size:11px;color:var(--text-soft)">${t.time}</span>` : ""}</td>
-        <td style="font-size:12px;color:var(--text-mid);max-width:180px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${t.items.map(i=>`${i.name}×${i.qty}`).join(", ")}</td>
-        <td><span class="tag tag-teal" style="font-size:11px">${t.paymentMethod}</span></td>
-        <td>${t.discountPct > 0 ? `<span class="tag tag-warn" style="font-size:11px">${t.discountPct}%</span>` : "—"}</td>
-        <td style="font-weight:700;color:var(--green-dark)">₱${t.total.toFixed(2)}</td>
-        <td style="font-size:12px;color:var(--text-soft)">${t.cashier}</td>
-      </tr>`).join("");
-  }
 }
 
 /* ══════════════════════════════════════════════
-   INVENTORY REPORT
+   3) INVENTORY REPORT — category filter + sort + per-category generate
 ══════════════════════════════════════════════ */
-function renderInventoryReport(from, to) {
-  // Show current snapshot; "date range" filters items added within range
-  const addedInRange = inventory.filter(i => i.dateAdded >= from && i.dateAdded <= to);
-  const allIds       = [...new Set(inventory.map(i => i.id))];
+function renderInventoryReport(from, to, catFilter, sortBy) {
+  const addedInRange = inventory.filter(i => i.dateAdded >= from && i.dateAdded <= to && (!catFilter || i.category === catFilter));
+  const allIdsAll    = [...new Set(inventory.map(i => i.id))];
+  const allIds       = catFilter
+    ? allIdsAll.filter(id => inventory.find(i => i.id === id)?.category === catFilter)
+    : allIdsAll;
 
-  // Category breakdown
+  // Category breakdown (always computed across ALL categories, regardless
+  // of the filter, so the user can still see the full category split —
+  // the filter narrows the snapshot/added-items tables below instead)
   const byCat = {};
-  allIds.forEach(id => {
+  allIdsAll.forEach(id => {
     const batches  = inventory.filter(i => i.id === id);
     const cat      = batches[0].category;
     const totalQty = batches.reduce((s, i) => s + i.qty, 0);
@@ -216,8 +334,9 @@ function renderInventoryReport(from, to) {
     byCat[cat].value += value;
   });
 
-  const totalValue = Object.values(byCat).reduce((s, c) => s + c.value, 0);
-  const totalQtyAll = Object.values(byCat).reduce((s, c) => s + c.qty, 0);
+  const totalValueAll = Object.values(byCat).reduce((s, c) => s + c.value, 0);
+  const totalQtyScoped = allIds.reduce((s, id) => s + inventory.filter(i=>i.id===id).reduce((s2,i)=>s2+i.qty,0), 0);
+  const totalValueScoped = allIds.reduce((s, id) => s + inventory.filter(i=>i.id===id).reduce((s2,i)=>s2+i.qty*i.price,0), 0);
   const lowIds  = allIds.filter(id => {
     const b = inventory.filter(i => i.id === id);
     const q = b.reduce((s,i)=>s+i.qty,0);
@@ -225,28 +344,21 @@ function renderInventoryReport(from, to) {
   });
   const outIds  = allIds.filter(id => inventory.filter(i=>i.id===id).reduce((s,i)=>s+i.qty,0) === 0);
 
-  // Expiry alerts
-  const expSoon = inventory.filter(i => {
-    const d = Math.ceil((new Date(i.expiry) - new Date()) / 86400000);
-    return d > 0 && d <= 90;
-  });
-  const expired = inventory.filter(i => new Date(i.expiry) < new Date());
-
   document.getElementById("rptInvKpi").innerHTML = `
     <div class="rpt-kpi-card rpt-kpi-teal">
       <div class="rpt-kpi-icon">📦</div>
       <div class="rpt-kpi-val">${allIds.length}</div>
-      <div class="rpt-kpi-lbl">Unique Items</div>
+      <div class="rpt-kpi-lbl">${catFilter ? `Items in "${catFilter}"` : "Unique Items"}</div>
     </div>
     <div class="rpt-kpi-card">
       <div class="rpt-kpi-icon">🔢</div>
-      <div class="rpt-kpi-val">${totalQtyAll.toLocaleString()}</div>
+      <div class="rpt-kpi-val">${totalQtyScoped.toLocaleString()}</div>
       <div class="rpt-kpi-lbl">Total Units in Stock</div>
     </div>
     <div class="rpt-kpi-card rpt-kpi-green">
       <div class="rpt-kpi-icon">₱</div>
-      <div class="rpt-kpi-val">₱${totalValue.toFixed(2)}</div>
-      <div class="rpt-kpi-lbl">Total Inventory Value</div>
+      <div class="rpt-kpi-val">₱${totalValueScoped.toFixed(2)}</div>
+      <div class="rpt-kpi-lbl">Inventory Value</div>
     </div>
     <div class="rpt-kpi-card rpt-kpi-warn">
       <div class="rpt-kpi-icon">⚠️</div>
@@ -254,24 +366,27 @@ function renderInventoryReport(from, to) {
       <div class="rpt-kpi-lbl">Low / Out of Stock</div>
     </div>`;
 
-  // Category table
+  // Category table — sortable by Value (desc) or by Category name (A→Z)
   const catTbody = document.getElementById("rptCatTbl");
-  catTbody.innerHTML = Object.entries(byCat)
-    .sort((a,b) => b[1].value - a[1].value)
-    .map(([cat, d]) => `
-      <tr>
+  let catEntries = Object.entries(byCat);
+  catEntries = sortBy === "name"
+    ? catEntries.sort((a, b) => a[0].localeCompare(b[0]))
+    : catEntries.sort((a, b) => b[1].value - a[1].value);
+
+  catTbody.innerHTML = catEntries.map(([cat, d]) => `
+      <tr class="${cat === catFilter ? "low-stock" : ""}">
         <td><span class="tag tag-teal">${cat}</span></td>
         <td style="text-align:right">${d.items}</td>
         <td style="text-align:right">${d.qty.toLocaleString()}</td>
         <td style="text-align:right;font-weight:700;color:var(--green-dark)">₱${d.value.toFixed(2)}</td>
         <td style="text-align:right;color:var(--text-soft)">
-          ${totalValue > 0 ? ((d.value/totalValue)*100).toFixed(1) : 0}%
+          ${totalValueAll > 0 ? ((d.value/totalValueAll)*100).toFixed(1) : 0}%
         </td>
       </tr>`).join("") || `<tr><td colspan="5" class="rpt-empty">No data.</td></tr>`;
 
-  // Full item table (current snapshot)
+  // Full item table (current snapshot, respecting the category filter)
   const invTbody = document.getElementById("rptInvItemsTbl");
-  const sortedInv = allIds.map(id => {
+  let sortedInv = allIds.map(id => {
     const batches  = inventory.filter(i => i.id === id).sort((a,b)=>a.batchNo-b.batchNo);
     const totalQty = batches.reduce((s,i)=>s+i.qty,0);
     const value    = batches.reduce((s,i)=>s+i.qty*i.price,0);
@@ -285,7 +400,10 @@ function renderInventoryReport(from, to) {
     });
     const hasExp   = batches.some(b => new Date(b.expiry) < new Date());
     return { id, ref, batches, totalQty, value, isLow, isOut, nearExp, hasExp };
-  }).sort((a,b) => a.id.localeCompare(b.id));
+  });
+  sortedInv = sortBy === "name"
+    ? sortedInv.sort((a,b) => a.ref.category.localeCompare(b.ref.category) || a.id.localeCompare(b.id))
+    : sortedInv.sort((a,b) => b.value - a.value);
 
   invTbody.innerHTML = sortedInv.map(item => {
     const statusTag = item.isOut
@@ -308,13 +426,12 @@ function renderInventoryReport(from, to) {
       <td style="text-align:right;color:var(--text-soft)">${item.ref.reorder}</td>
       <td>${statusTag} ${expTag}</td>
     </tr>`;
-  }).join("") || `<tr><td colspan="8" class="rpt-empty">No items found.</td></tr>`;
+  }).join("") || `<tr><td colspan="8" class="rpt-empty">No items found${catFilter ? ` in "${catFilter}"` : ""}.</td></tr>`;
 
-  // Items added in range
+  // Items added in range (also respects the category filter)
   const addedTbody = document.getElementById("rptAddedItemsTbl");
-  const addedIds = [...new Set(addedInRange.map(i => i.id))];
-  if (addedIds.length === 0) {
-    addedTbody.innerHTML = `<tr><td colspan="5" class="rpt-empty">No items added in this period.</td></tr>`;
+  if (addedInRange.length === 0) {
+    addedTbody.innerHTML = `<tr><td colspan="5" class="rpt-empty">No items added in this period${catFilter ? ` for "${catFilter}"` : ""}.</td></tr>`;
   } else {
     addedTbody.innerHTML = addedInRange
       .sort((a,b) => b.dateAdded.localeCompare(a.dateAdded))
@@ -330,7 +447,7 @@ function renderInventoryReport(from, to) {
 }
 
 /* ══════════════════════════════════════════════
-   STOCK MOVEMENT REPORT
+   4) STOCK MOVEMENT REPORT
 ══════════════════════════════════════════════ */
 function renderMovementReport(from, to) {
   const logs = stockLog.filter(l => l.date >= from && l.date <= to);

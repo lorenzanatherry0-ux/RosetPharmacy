@@ -26,6 +26,23 @@ function computeFifoUnitPrice(id, qty) {
   return qty > 0 ? cost / qty : (batches[0]?.price || 0);
 }
 
+/* Same FIFO walk as above, but for the item's CAPITAL COST rather than its
+   selling price. Used to calculate profit at checkout time — never shown
+   on the POS screen itself, only stored on the transaction for later
+   display in Transaction History. */
+function computeFifoUnitCost(id, qty) {
+  const batches = inventory.filter(i => i.id === id && i.qty > 0).sort((a, b) => a.batchNo - b.batchNo);
+  let remaining = qty, totalCost = 0;
+  for (const b of batches) {
+    if (remaining <= 0) break;
+    const take = Math.min(b.qty, remaining);
+    totalCost += take * (b.cost ?? 0);
+    remaining -= take;
+  }
+  if (remaining > 0 && batches.length > 0) totalCost += remaining * (batches[batches.length - 1].cost ?? 0);
+  return qty > 0 ? totalCost / qty : (batches[0]?.cost ?? 0);
+}
+
 /* ── PRODUCT LOOKUP (search-driven) ─────────── */
 function renderPosGrid() {
   const q   = (document.getElementById("posSearch")?.value || "").trim();
@@ -75,9 +92,9 @@ function renderPosGrid() {
     const isLow       = i.totalQty <= i.reorder && i.totalQty > 0;
     const oldestBatch = i.batches.sort((a, b) => a.batchNo - b.batchNo).find(b => b.qty > 0);
     const price       = oldestBatch ? oldestBatch.price : (i.batches[0]?.price || 0);
-    const stockLabel  = oos ? `<span class="lookup-stock empty">Out of stock</span>`
-                      : isLow ? `<span class="lookup-stock low">${i.totalQty} ${i.unit}s left</span>`
-                      : `<span class="lookup-stock ok">${i.totalQty} ${i.unit}s</span>`;
+    const stockLabel  = oos ? `<span class="lookup-stock empty">⛔ Out of stock</span>`
+                      : isLow ? `<span class="lookup-stock low">⚠ ${i.totalQty} ${i.unit}s left</span>`
+                      : `<span class="lookup-stock ok">${i.totalQty} ${i.unit}s in stock</span>`;
 
     return `<div class="lookup-row${oos ? " oos" : ""}">
       <div class="lookup-info">
@@ -85,10 +102,12 @@ function renderPosGrid() {
         <div class="lookup-meta">
           <span class="lookup-code">${i.id}</span>
           <span class="tag tag-teal" style="font-size:10px;padding:2px 7px">${i.category}</span>
-          ${stockLabel}
         </div>
       </div>
-      <div class="lookup-price">₱${price.toFixed(2)}<span class="lookup-unit">/${i.unit}</span></div>
+      <div class="lookup-stock-block">
+        ${stockLabel}
+        <div class="lookup-price">₱${price.toFixed(2)}<span class="lookup-unit">/${i.unit}</span></div>
+      </div>
       ${oos ? `<div class="lookup-add-disabled">Out of Stock</div>` : `
       <div class="lookup-add-wrap">
         <input type="number" id="lookupQty_${i.id}" class="lookup-qty-input" min="1" max="${i.totalQty}" value="1" placeholder="1"/>
@@ -119,9 +138,10 @@ function addToCartWithQty(id) {
     if (newQty > totalAvail) { toast("warn", `Only ${totalAvail} in stock. Cart already has ${existing.qty}.`); return; }
     existing.qty   = newQty;
     existing.price = computeFifoUnitPrice(id, newQty);
+    existing.cost  = computeFifoUnitCost(id, newQty);
   } else {
     if (qty > totalAvail) { toast("warn", `Only ${totalAvail} in stock.`); return; }
-    cart.push({ id: oldest.id, name: oldest.name, price: computeFifoUnitPrice(id, qty), qty });
+    cart.push({ id: oldest.id, name: oldest.name, price: computeFifoUnitPrice(id, qty), cost: computeFifoUnitCost(id, qty), qty });
   }
 
   if (qtyEl) qtyEl.value = 1;
@@ -144,8 +164,9 @@ function addToCart(id) {
     if (existing.qty >= totalAvail) { toast("warn", "Not enough stock available."); return; }
     existing.qty++;
     existing.price = computeFifoUnitPrice(id, existing.qty);
+    existing.cost  = computeFifoUnitCost(id, existing.qty);
   } else {
-    cart.push({ id: oldest.id, name: oldest.name, price: computeFifoUnitPrice(id, 1), qty: 1 });
+    cart.push({ id: oldest.id, name: oldest.name, price: computeFifoUnitPrice(id, 1), cost: computeFifoUnitCost(id, 1), qty: 1 });
   }
   renderCart();
 }
@@ -159,6 +180,7 @@ function updateCartQty(id, delta) {
   else {
     if (ci.qty > totalAvail) { ci.qty = totalAvail; toast("warn", "Max stock reached."); }
     ci.price = computeFifoUnitPrice(id, ci.qty);
+    ci.cost  = computeFifoUnitCost(id, ci.qty);
   }
   renderCart();
 }
@@ -184,8 +206,6 @@ function renderCart() {
     });
     const dispEl = document.getElementById("cartTotalDisplay");
     if (dispEl) dispEl.textContent = "0.00";
-    const qc = document.getElementById("quickCash");
-    if (qc) qc.innerHTML = "";
     return;
   }
 
@@ -248,24 +268,7 @@ function updateCartTotals() {
   set("cartTotal",      `₱${total.toFixed(2)}`);
   set("cartTotalDisplay", total.toFixed(2));
 
-  buildQuickCash(total);
   updateChange();
-}
-
-/* ── CASH / CHANGE ────────────────────────── */
-function buildQuickCash(total) {
-  const qc = document.getElementById("quickCash");
-  if (!qc) return;
-  const denoms  = [20, 50, 100, 200, 500, 1000];
-  const options = denoms.filter(d => d >= total).slice(0, 4);
-  qc.innerHTML  = options.map(d =>
-    `<button class="quick-cash-btn" onclick="setCashTendered(${d})">₱${d}</button>`
-  ).join("");
-}
-
-function setCashTendered(val) {
-  const el = document.getElementById("cashTendered");
-  if (el) { el.value = val; updateChange(); }
 }
 
 function updateChange() {
@@ -291,12 +294,6 @@ function updateChange() {
   }
 }
 
-function updateCashRow() {
-  const method  = document.getElementById("paymentMethod")?.value;
-  const cashRow = document.getElementById("cashRow");
-  if (cashRow) cashRow.style.display = method === "Cash" ? "block" : "none";
-}
-
 /* ── CLEAR CART ───────────────────────────── */
 function clearCart() {
   cart        = [];
@@ -316,16 +313,17 @@ function clearCart() {
 async function checkout() {
   if (cart.length === 0) return;
 
-  const method   = document.getElementById("paymentMethod")?.value || "Cash";
+  // Payment method is always Cash — the payment-method selector was
+  // removed per requirements (no GCash/Maya/Card/PhilHealth choice).
+  const method   = "Cash";
   const subtotal = cart.reduce((s, c) => s + c.price * c.qty, 0);
   const discAmt  = subtotal * (discountPct / 100);
   const total    = subtotal - discAmt;
 
-  // Cash validation
-  if (method === "Cash") {
-    const tendered = parseFloat(document.getElementById("cashTendered")?.value) || 0;
-    if (tendered < total) { toast("error", "Cash tendered is less than the total."); return; }
-  }
+  // Cash tendered must be manually typed by the cashier for every sale —
+  // there is no auto-filled / quick-cash amount any more.
+  const tendered = parseFloat(document.getElementById("cashTendered")?.value) || 0;
+  if (tendered < total) { toast("error", "Please enter the cash amount received — it must be at least the total due."); return; }
 
   // Re-validate stock right before committing — inventory could have
   // changed (another sale, a stock-out) since items were added to cart.
@@ -340,8 +338,7 @@ async function checkout() {
   const txnId    = "TXN" + String(transactions.length + 1).padStart(3, "0");
   const dateStr  = today();
   const timeStr  = new Date().toLocaleTimeString("en-PH", { hour: "2-digit", minute: "2-digit" });
-  const tendered = method === "Cash" ? (parseFloat(document.getElementById("cashTendered")?.value) || 0) : total;
-  const change   = method === "Cash" ? tendered - total : 0;
+  const change   = tendered - total;
 
   // FIFO deduct inventory
   const touchedBatches = [];
@@ -363,11 +360,17 @@ async function checkout() {
     });
   });
 
+  // Cost of goods sold & profit — computed here for the receipt/history
+  // record, but NEVER rendered anywhere on the POS screen itself.
+  const totalCost = cart.reduce((s, c) => s + (c.cost || 0) * c.qty, 0);
+  const profit    = total - totalCost;
+
   // Save transaction
   const txn = {
     id: txnId, date: dateStr, time: timeStr,
-    items: cart.map(c => ({ name: c.name, qty: c.qty, price: c.price })),
-    subtotal, discountPct, discAmt, total, cashTendered: tendered, change,
+    items: cart.map(c => ({ name: c.name, qty: c.qty, price: c.price, cost: c.cost || 0 })),
+    subtotal, discountPct, discAmt, total, cost: totalCost, profit,
+    cashTendered: tendered, change,
     cashier: currentUser.name, paymentMethod: method
   };
   transactions.push(txn);

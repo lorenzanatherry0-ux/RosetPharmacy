@@ -109,16 +109,24 @@
 }
 .lookup-stock {
   font-family: 'JetBrains Mono', monospace;
-  font-size: 11px; font-weight: 600;
-  padding: 1px 6px; border-radius: 3px;
+  font-size: 13px; font-weight: 800;
+  padding: 3px 9px; border-radius: 5px;
+  letter-spacing: .2px; white-space: nowrap;
 }
-.lookup-stock.ok    { color: #4ade80; background: rgba(74,222,128,.1); border: 1px solid rgba(74,222,128,.2); }
-.lookup-stock.low   { color: #fbbf24; background: rgba(251,191,36,.1);  border: 1px solid rgba(251,191,36,.2); }
-.lookup-stock.empty { color: #f87171; background: rgba(248,113,113,.1); border: 1px solid rgba(248,113,113,.2); }
+.lookup-stock.ok    { color: #4ade80; background: rgba(74,222,128,.12); border: 1px solid rgba(74,222,128,.25); }
+.lookup-stock.low   { color: #fbbf24; background: rgba(251,191,36,.14);  border: 1px solid rgba(251,191,36,.3); }
+.lookup-stock.empty { color: #f87171; background: rgba(248,113,113,.12); border: 1px solid rgba(248,113,113,.25); }
+
+/* Stock + price grouped together so quantity is impossible to miss while
+   selling — bigger, bolder, sits right above the price. */
+.lookup-stock-block {
+  display: flex; flex-direction: column; align-items: flex-end; gap: 4px;
+  flex-shrink: 0;
+}
 
 .lookup-price {
   font-family: 'JetBrains Mono', monospace;
-  font-size: 15px; font-weight: 700;
+  font-size: 14px; font-weight: 700;
   color: #4ade80; white-space: nowrap;
 }
 .lookup-unit { font-size: 10px; color: #4a5568; margin-left: 1px; }
@@ -323,16 +331,21 @@
   font-size: 20px; font-weight: 700; color: #4ade80;
 }
 
-/* Payment */
-.payment-select {
-  width: 100%; padding: 9px 12px;
-  border: 1px solid #2a3044; border-radius: 7px;
-  font-size: 13px; margin-bottom: 8px;
-  background: #1a1f2e; outline: none; color: #e2e8f0;
-  cursor: pointer;
+/* Fixed payment-method label (selector removed — Cash is the only method) */
+.payment-fixed {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 8px 12px; margin-bottom: 8px;
+  background: rgba(74,222,128,.08); border: 1px solid rgba(74,222,128,.2);
+  border-radius: 7px;
 }
-.payment-select:focus { border-color: #2dd4bf; }
-.payment-select option { background: #1a1f2e; }
+.payment-fixed-label {
+  font-size: 10px; font-weight: 700; color: #4a5568;
+  text-transform: uppercase; letter-spacing: .6px;
+}
+.payment-fixed-value {
+  font-family: 'Syne', sans-serif;
+  font-size: 13px; font-weight: 800; color: #4ade80;
+}
 
 /* Cash row */
 .cash-row { margin-bottom: 8px; }
@@ -363,16 +376,6 @@
   font-family: 'JetBrains Mono', monospace;
   font-size: 17px; font-weight: 700; color: #4ade80;
 }
-
-.quick-cash { display: flex; gap: 4px; flex-wrap: wrap; margin-bottom: 8px; }
-.quick-cash-btn {
-  flex: 1; min-width: 44px; padding: 5px 4px; border-radius: 5px;
-  border: 1px solid #2a3044; background: #1a1f2e;
-  font-family: 'JetBrains Mono', monospace;
-  font-size: 11px; font-weight: 700; color: #64748b;
-  cursor: pointer; transition: all .12s;
-}
-.quick-cash-btn:hover { border-color: #2dd4bf; color: #2dd4bf; background: rgba(45,212,191,.08); }
 
 /* Checkout buttons */
 .btn-clear-cart {

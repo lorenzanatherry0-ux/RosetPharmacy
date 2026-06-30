@@ -285,26 +285,22 @@
             <span class="cart-total-amount" id="cartTotal">₱0.00</span>
           </div>
 
-          <!-- Payment method -->
-          <select class="payment-select" id="paymentMethod" onchange="updateCashRow()">
-            <option value="Cash">Cash</option>
-            <option value="GCash">GCash</option>
-            <option value="Maya">Maya</option>
-            <option value="Card">Credit/Debit Card</option>
-            <option value="PhilHealth">PhilHealth</option>
-          </select>
+          <!-- Payment method — fixed at Cash, no selector (per requirements) -->
+          <div class="payment-fixed">
+            <span class="payment-fixed-label">Payment Method</span>
+            <span class="payment-fixed-value">💵 Cash</span>
+          </div>
 
-          <!-- Cash tendered (Cash only) -->
+          <!-- Cash tendered — cashier must type this manually for every sale -->
           <div class="cash-row" id="cashRow">
             <div class="cash-row-label">
-              <span>Cash Tendered</span>
-              <input type="number" id="cashTendered" class="cash-input" min="0" step="0.01" placeholder="0.00" oninput="updateChange()"/>
+              <span>Cash Received</span>
+              <input type="number" id="cashTendered" class="cash-input" min="0" step="0.01" placeholder="Type amount received" oninput="updateChange()"/>
             </div>
             <div class="change-display" id="changeDisplay">
               <span class="change-lbl">Change</span>
               <span class="change-val" id="changeAmount">₱0.00</span>
             </div>
-            <div class="quick-cash" id="quickCash"></div>
           </div>
 
           <button class="btn-clear-cart" onclick="clearCart()">Clear Cart</button>
@@ -422,7 +418,7 @@
       <div class="page-header">
         <div>
           <div class="page-title">Transaction History</div>
-          <div class="page-sub">All completed sales</div>
+          <div class="page-sub">Defaults to today's sales — pick a date to view any previous day</div>
         </div>
       </div>
       <div class="card">
@@ -436,12 +432,16 @@
               </span>
               <input type="text" placeholder="Search transactions..." id="txnSearch" oninput="renderTransactions()"/>
             </div>
+            <input type="date" class="filter-select" id="txnDateFilter" onchange="onTxnDateInputChange()"/>
+            <button class="btn btn-ghost btn-sm" onclick="setTxnDateToday()">Today</button>
+            <button class="btn btn-ghost btn-sm" onclick="clearTxnDateFilter()">All Dates</button>
+            <div id="txnSummary" style="margin-left:auto;display:flex;gap:16px;font-size:12.5px;color:var(--text-mid)"></div>
           </div>
           <div class="table-wrap">
             <table>
               <thead><tr>
                 <th>TXN ID</th><th>Date / Time</th><th>Items</th>
-                <th>Total</th><th>Payment</th><th>Cashier</th><th>Action</th>
+                <th>Total</th><th>Profit</th><th>Payment</th><th>Cashier</th><th>Action</th>
               </tr></thead>
               <tbody id="transactionTable"></tbody>
             </table>
@@ -455,9 +455,9 @@
       <div class="page-header">
         <div>
           <div class="page-title">Reports</div>
-          <div class="page-sub">Inventory &amp; Sales reports by date range</div>
+          <div class="page-sub">Choose a report category, set your filters, then generate</div>
         </div>
-        <button class="rpt-print-btn" onclick="printReport()">
+        <button class="rpt-print-btn hidden" id="rptPrintBtn" onclick="printReport()">
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
             <polyline points="6 9 6 2 18 2 18 9"/>
             <path d="M6 18H4a2 2 0 01-2-2v-5a2 2 0 012-2h16a2 2 0 012 2v5a2 2 0 01-2 2h-2"/>
@@ -467,205 +467,228 @@
         </button>
       </div>
 
-      <!-- Controls bar -->
-      <div class="rpt-controls">
-        <!-- Quick presets -->
-        <div class="rpt-presets">
-          <button class="rpt-preset-btn" data-preset="today"      onclick="setReportPreset('today')">Today</button>
-          <button class="rpt-preset-btn" data-preset="week"       onclick="setReportPreset('week')">Last 7 Days</button>
-          <button class="rpt-preset-btn active" data-preset="month" onclick="setReportPreset('month')">This Month</button>
-          <button class="rpt-preset-btn" data-preset="last-month" onclick="setReportPreset('last-month')">Last Month</button>
-          <button class="rpt-preset-btn" data-preset="quarter"    onclick="setReportPreset('quarter')">This Quarter</button>
-          <button class="rpt-preset-btn" data-preset="year"       onclick="setReportPreset('year')">This Year</button>
+      <!-- ══ CATEGORY LANDING — nothing else renders until a category is opened ══ -->
+      <div class="rpt-cat-grid" id="rptCatGrid">
+        <div class="rpt-cat-card" onclick="openReportCategory('posdetail')">
+          <div class="rpt-cat-icon">🧾</div>
+          <div class="rpt-cat-title">POS Detail Report</div>
+          <div class="rpt-cat-sub">Daily Sales — full transaction journal for one selected day, including profit</div>
         </div>
-        <div class="rpt-divider"></div>
-        <!-- Custom range -->
-        <div class="rpt-date-row">
-          <label>From</label>
-          <input type="date" id="rptFrom" class="rpt-date-input" onchange="document.querySelectorAll('.rpt-preset-btn').forEach(b=>b.classList.remove('active'))"/>
+        <div class="rpt-cat-card" onclick="openReportCategory('salessummary')">
+          <div class="rpt-cat-icon">📊</div>
+          <div class="rpt-cat-title">Sales Report Summary</div>
+          <div class="rpt-cat-sub">Per Day — revenue, top items & payment breakdown across a date range</div>
         </div>
-        <div class="rpt-date-row">
-          <label>To</label>
-          <input type="date" id="rptTo" class="rpt-date-input" onchange="document.querySelectorAll('.rpt-preset-btn').forEach(b=>b.classList.remove('active'))"/>
+        <div class="rpt-cat-card" onclick="openReportCategory('inventory')">
+          <div class="rpt-cat-icon">📦</div>
+          <div class="rpt-cat-title">Inventory Report</div>
+          <div class="rpt-cat-sub">Stock levels & value — filter, sort, and generate per category</div>
         </div>
-        <button class="rpt-apply-btn" onclick="renderReports()">Apply</button>
-        <span class="rpt-range-label" id="rptRangeLabel">—</span>
+        <div class="rpt-cat-card" onclick="openReportCategory('movement')">
+          <div class="rpt-cat-icon">↕️</div>
+          <div class="rpt-cat-title">Stock Movement Report</div>
+          <div class="rpt-cat-sub">Stock in / out activity log over a date range</div>
+        </div>
       </div>
 
-      <!-- Tab navigation -->
-      <div class="rpt-tabs">
-        <button class="rpt-tab-btn active" data-tab="sales" onclick="switchReportTab('sales')">
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 000 7h5a3.5 3.5 0 010 7H6"/>
-          </svg>
-          Sales Report
+      <!-- ══ DETAIL VIEW (hidden until a category card is clicked) ══ -->
+      <div class="hidden" id="rptDetailView">
+        <button class="rpt-back-btn" onclick="closeReportCategory()">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="15 18 9 12 15 6"/></svg>
+          Back to Reports
         </button>
-        <button class="rpt-tab-btn" data-tab="inventory" onclick="switchReportTab('inventory')">
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <path d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4"/>
-          </svg>
-          Inventory Report
-        </button>
-        <button class="rpt-tab-btn" data-tab="movement" onclick="switchReportTab('movement')">
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <polyline points="23 6 13.5 15.5 8.5 10.5 1 18"/><polyline points="17 6 23 6 23 12"/>
-          </svg>
-          Stock Movement
-        </button>
-      </div>
+        <div class="rpt-detail-heading">
+          <div class="rpt-detail-title" id="rptDetailTitle">Report</div>
+          <div class="rpt-detail-sub" id="rptDetailSub"></div>
+        </div>
 
-      <!-- ══ SALES REPORT PANEL ══ -->
-      <div class="rpt-panel active" data-panel="sales">
-        <div class="rpt-kpi-row" id="rptSalesKpi"></div>
-
-        <div class="rpt-row-2">
-          <!-- Payment breakdown -->
-          <div class="rpt-card">
-            <div class="rpt-card-header">
-              <span class="rpt-card-title">Payment Method Breakdown</span>
-            </div>
-            <div id="rptPaymentBreakdown"></div>
+        <!-- ── Controls: POS Detail (single date) ── -->
+        <div class="rpt-controls rpt-controls-bar" data-controls="posdetail">
+          <div class="rpt-date-row">
+            <label>Date</label>
+            <input type="date" id="posdetailDate" class="rpt-date-input"/>
           </div>
-          <!-- Daily sales summary -->
+          <button class="rpt-apply-btn" onclick="generateReport()">Generate Report</button>
+        </div>
+
+        <!-- ── Controls: Sales Summary (range + presets) ── -->
+        <div class="rpt-controls rpt-controls-bar hidden" data-controls="salessummary">
+          <div class="rpt-presets">
+            <button class="rpt-preset-btn" data-scope="salessummary" data-preset="today"      onclick="setReportPreset('salessummary','today')">Today</button>
+            <button class="rpt-preset-btn" data-scope="salessummary" data-preset="week"       onclick="setReportPreset('salessummary','week')">Last 7 Days</button>
+            <button class="rpt-preset-btn active" data-scope="salessummary" data-preset="month" onclick="setReportPreset('salessummary','month')">This Month</button>
+            <button class="rpt-preset-btn" data-scope="salessummary" data-preset="last-month" onclick="setReportPreset('salessummary','last-month')">Last Month</button>
+            <button class="rpt-preset-btn" data-scope="salessummary" data-preset="quarter"    onclick="setReportPreset('salessummary','quarter')">This Quarter</button>
+            <button class="rpt-preset-btn" data-scope="salessummary" data-preset="year"       onclick="setReportPreset('salessummary','year')">This Year</button>
+          </div>
+          <div class="rpt-divider"></div>
+          <div class="rpt-date-row"><label>From</label><input type="date" id="rptFrom" class="rpt-date-input"/></div>
+          <div class="rpt-date-row"><label>To</label><input type="date" id="rptTo" class="rpt-date-input"/></div>
+          <button class="rpt-apply-btn" onclick="generateReport()">Generate Report</button>
+        </div>
+
+        <!-- ── Controls: Inventory (range + category filter + sort) ── -->
+        <div class="rpt-controls rpt-controls-bar hidden" data-controls="inventory">
+          <div class="rpt-date-row"><label>Added From</label><input type="date" id="invFrom" class="rpt-date-input"/></div>
+          <div class="rpt-date-row"><label>To</label><input type="date" id="invTo" class="rpt-date-input"/></div>
+          <div class="rpt-divider"></div>
+          <div class="rpt-date-row">
+            <label>Category</label>
+            <select class="rpt-date-input" id="invCatReportFilter">
+              <option value="">All Categories</option>
+            </select>
+          </div>
+          <div class="rpt-date-row">
+            <label>Sort By</label>
+            <select class="rpt-date-input" id="invSortBy">
+              <option value="value">Value (High → Low)</option>
+              <option value="name">Category (A → Z)</option>
+            </select>
+          </div>
+          <button class="rpt-apply-btn" onclick="generateReport()">Generate Report</button>
+        </div>
+
+        <!-- ── Controls: Stock Movement (range) ── -->
+        <div class="rpt-controls rpt-controls-bar hidden" data-controls="movement">
+          <div class="rpt-presets">
+            <button class="rpt-preset-btn" data-scope="movement" data-preset="today"      onclick="setReportPreset('movement','today')">Today</button>
+            <button class="rpt-preset-btn" data-scope="movement" data-preset="week"       onclick="setReportPreset('movement','week')">Last 7 Days</button>
+            <button class="rpt-preset-btn active" data-scope="movement" data-preset="month" onclick="setReportPreset('movement','month')">This Month</button>
+            <button class="rpt-preset-btn" data-scope="movement" data-preset="quarter"    onclick="setReportPreset('movement','quarter')">This Quarter</button>
+          </div>
+          <div class="rpt-divider"></div>
+          <div class="rpt-date-row"><label>From</label><input type="date" id="moveFrom" class="rpt-date-input"/></div>
+          <div class="rpt-date-row"><label>To</label><input type="date" id="moveTo" class="rpt-date-input"/></div>
+          <button class="rpt-apply-btn" onclick="generateReport()">Generate Report</button>
+        </div>
+
+        <!-- Empty state — shown until Generate Report is clicked -->
+        <div class="rpt-empty-state" id="rptEmptyState">
+          <div class="rpt-empty-icon">📄</div>
+          <p>Set your filters above, then click <strong>Generate Report</strong> to see the data.</p>
+        </div>
+
+        <!-- ══ PANEL: POS DETAIL REPORT ══ -->
+        <div class="rpt-panel" data-panel="posdetail">
+          <div class="rpt-kpi-row" id="posdetailKpi"></div>
           <div class="rpt-card">
             <div class="rpt-card-header">
-              <span class="rpt-card-title">Daily Sales Summary</span>
+              <span class="rpt-card-title">Transaction Journal — <span id="posdetailDateLabel"></span></span>
             </div>
             <div class="rpt-card-body">
               <table class="rpt-table">
                 <thead><tr>
-                  <th>Date</th><th>Transactions</th><th>Revenue</th><th>Avg/Txn</th>
+                  <th>TXN ID</th><th>Time</th><th>Items</th><th>Payment</th><th>Discount</th>
+                  <th>Total</th><th>Profit</th><th>Cashier</th>
                 </tr></thead>
-                <tbody id="rptDailySalesTbl"></tbody>
+                <tbody id="posdetailTbl"></tbody>
               </table>
             </div>
           </div>
         </div>
 
-        <!-- Top-selling items -->
-        <div class="rpt-card">
-          <div class="rpt-card-header">
-            <span class="rpt-card-title">Top-Selling Items</span>
-          </div>
-          <div class="rpt-card-body">
-            <table class="rpt-table">
-              <thead><tr>
-                <th>Rank</th><th>Item Name</th><th style="text-align:right">Units Sold</th><th style="text-align:right">Revenue</th>
-              </tr></thead>
-              <tbody id="rptTopItemsTbl"></tbody>
-            </table>
-          </div>
-        </div>
-
-        <!-- Full transaction list -->
-        <div class="rpt-card">
-          <div class="rpt-card-header">
-            <span class="rpt-card-title">All Transactions</span>
-          </div>
-          <div class="rpt-card-body">
-            <table class="rpt-table">
-              <thead><tr>
-                <th>TXN ID</th><th>Date</th><th>Items</th><th>Payment</th><th>Discount</th><th>Total</th><th>Cashier</th>
-              </tr></thead>
-              <tbody id="rptTxnListTbl"></tbody>
-            </table>
-          </div>
-        </div>
-      </div><!-- end sales panel -->
-
-      <!-- ══ INVENTORY REPORT PANEL ══ -->
-      <div class="rpt-panel" data-panel="inventory">
-        <div class="rpt-kpi-row" id="rptInvKpi"></div>
-
-        <div class="rpt-row-2">
-          <!-- Category breakdown -->
-          <div class="rpt-card">
-            <div class="rpt-card-header">
-              <span class="rpt-card-title">By Category</span>
+        <!-- ══ PANEL: SALES REPORT SUMMARY ══ -->
+        <div class="rpt-panel" data-panel="salessummary">
+          <div class="rpt-kpi-row" id="rptSalesKpi"></div>
+          <div class="rpt-row-2">
+            <div class="rpt-card">
+              <div class="rpt-card-header"><span class="rpt-card-title">Payment Method Breakdown</span></div>
+              <div id="rptPaymentBreakdown"></div>
             </div>
+            <div class="rpt-card">
+              <div class="rpt-card-header"><span class="rpt-card-title">Daily Sales Summary</span></div>
+              <div class="rpt-card-body">
+                <table class="rpt-table">
+                  <thead><tr><th>Date</th><th>Transactions</th><th>Revenue</th><th>Profit</th><th>Avg/Txn</th></tr></thead>
+                  <tbody id="rptDailySalesTbl"></tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+          <div class="rpt-card">
+            <div class="rpt-card-header"><span class="rpt-card-title">Top-Selling Items</span></div>
             <div class="rpt-card-body">
               <table class="rpt-table">
-                <thead><tr>
-                  <th>Category</th><th style="text-align:right">Items</th>
-                  <th style="text-align:right">Total Qty</th><th style="text-align:right">Value</th><th style="text-align:right">Share</th>
-                </tr></thead>
-                <tbody id="rptCatTbl"></tbody>
-              </table>
-            </div>
-          </div>
-          <!-- Items added in range -->
-          <div class="rpt-card">
-            <div class="rpt-card-header">
-              <span class="rpt-card-title">Items Added in Selected Period</span>
-            </div>
-            <div class="rpt-card-body">
-              <table class="rpt-table">
-                <thead><tr>
-                  <th>Code</th><th>Name</th><th>Date Added</th><th style="text-align:right">Qty</th><th>Batch</th>
-                </tr></thead>
-                <tbody id="rptAddedItemsTbl"></tbody>
+                <thead><tr><th>Rank</th><th>Item Name</th><th style="text-align:right">Units Sold</th><th style="text-align:right">Revenue</th></tr></thead>
+                <tbody id="rptTopItemsTbl"></tbody>
               </table>
             </div>
           </div>
         </div>
 
-        <!-- Full inventory snapshot -->
-        <div class="rpt-card">
-          <div class="rpt-card-header">
-            <span class="rpt-card-title">Current Inventory Snapshot</span>
+        <!-- ══ PANEL: INVENTORY REPORT ══ -->
+        <div class="rpt-panel" data-panel="inventory">
+          <div class="rpt-kpi-row" id="rptInvKpi"></div>
+          <div class="rpt-row-2">
+            <div class="rpt-card">
+              <div class="rpt-card-header"><span class="rpt-card-title">By Category</span></div>
+              <div class="rpt-card-body">
+                <table class="rpt-table">
+                  <thead><tr>
+                    <th>Category</th><th style="text-align:right">Items</th>
+                    <th style="text-align:right">Total Qty</th><th style="text-align:right">Value</th><th style="text-align:right">Share</th>
+                  </tr></thead>
+                  <tbody id="rptCatTbl"></tbody>
+                </table>
+              </div>
+            </div>
+            <div class="rpt-card">
+              <div class="rpt-card-header"><span class="rpt-card-title">Items Added in Selected Period</span></div>
+              <div class="rpt-card-body">
+                <table class="rpt-table">
+                  <thead><tr><th>Code</th><th>Name</th><th>Date Added</th><th style="text-align:right">Qty</th><th>Batch</th></tr></thead>
+                  <tbody id="rptAddedItemsTbl"></tbody>
+                </table>
+              </div>
+            </div>
           </div>
-          <div class="rpt-card-body">
-            <table class="rpt-table">
-              <thead><tr>
-                <th>Code</th><th>Name</th><th>Category</th>
-                <th style="text-align:right">Stock</th><th style="text-align:right">Unit Price</th>
-                <th style="text-align:right">Value</th><th>Status</th>
-              </tr></thead>
-              <tbody id="rptInvItemsTbl"></tbody>
-            </table>
-          </div>
-        </div>
-      </div><!-- end inventory panel -->
-
-      <!-- ══ STOCK MOVEMENT PANEL ══ -->
-      <div class="rpt-panel" data-panel="movement">
-        <div class="rpt-kpi-row" id="rptMoveKpi"></div>
-
-        <!-- Per-item movement summary -->
-        <div class="rpt-card">
-          <div class="rpt-card-header">
-            <span class="rpt-card-title">Movement Summary per Item</span>
-          </div>
-          <div class="rpt-card-body">
-            <table class="rpt-table">
-              <thead><tr>
-                <th>Code</th><th>Item Name</th>
-                <th style="text-align:right">Total In</th>
-                <th style="text-align:right">Total Out</th>
-                <th style="text-align:right">Net</th>
-              </tr></thead>
-              <tbody id="rptMoveItemTbl"></tbody>
-            </table>
-          </div>
-        </div>
-
-        <!-- Full log detail -->
-        <div class="rpt-card">
-          <div class="rpt-card-header">
-            <span class="rpt-card-title">Detailed Log Entries</span>
-          </div>
-          <div class="rpt-card-body">
-            <table class="rpt-table">
-              <thead><tr>
-                <th>Log ID</th><th>Date</th><th>Item Code</th><th>Item Name</th>
-                <th>Type</th><th style="text-align:right">Qty</th><th>Remarks</th>
-              </tr></thead>
-              <tbody id="rptFullLogTbl"></tbody>
-            </table>
+          <div class="rpt-card">
+            <div class="rpt-card-header"><span class="rpt-card-title">Current Inventory Snapshot</span></div>
+            <div class="rpt-card-body">
+              <table class="rpt-table">
+                <thead><tr>
+                  <th>Code</th><th>Name</th><th>Category</th>
+                  <th style="text-align:right">Stock</th><th style="text-align:right">Unit Price</th>
+                  <th style="text-align:right">Value</th><th style="text-align:right">Reorder Lvl</th><th>Status</th>
+                </tr></thead>
+                <tbody id="rptInvItemsTbl"></tbody>
+              </table>
+            </div>
           </div>
         </div>
-      </div><!-- end movement panel -->
 
+        <!-- ══ PANEL: STOCK MOVEMENT REPORT ══ -->
+        <div class="rpt-panel" data-panel="movement">
+          <div class="rpt-kpi-row" id="rptMoveKpi"></div>
+          <div class="rpt-card">
+            <div class="rpt-card-header"><span class="rpt-card-title">Movement Summary per Item</span></div>
+            <div class="rpt-card-body">
+              <table class="rpt-table">
+                <thead><tr>
+                  <th>Code</th><th>Item Name</th>
+                  <th style="text-align:right">Total In</th>
+                  <th style="text-align:right">Total Out</th>
+                  <th style="text-align:right">Net</th>
+                </tr></thead>
+                <tbody id="rptMoveItemTbl"></tbody>
+              </table>
+            </div>
+          </div>
+          <div class="rpt-card">
+            <div class="rpt-card-header"><span class="rpt-card-title">Detailed Log Entries</span></div>
+            <div class="rpt-card-body">
+              <table class="rpt-table">
+                <thead><tr>
+                  <th>Log ID</th><th>Date</th><th>Item Code</th><th>Item Name</th>
+                  <th>Type</th><th style="text-align:right">Qty</th><th>Remarks</th>
+                </tr></thead>
+                <tbody id="rptFullLogTbl"></tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+
+      </div><!-- end #rptDetailView -->
     </section><!-- end #reports -->
 
   </main>
@@ -717,17 +740,23 @@
       </div>
       <div class="form-row">
         <div class="form-group-m">
-          <label>Price (₱)</label>
+          <label>Price (₱) <span style="font-size:10px;color:var(--text-soft);font-weight:400">— selling price</span></label>
           <input type="number" id="fItemPrice" min="0" step="0.01" placeholder="0.00"/>
         </div>
+        <div class="form-group-m">
+          <label>Cost (₱) <span style="font-size:10px;color:var(--text-soft);font-weight:400">— acquisition cost, used for profit</span></label>
+          <input type="number" id="fItemCost" min="0" step="0.01" placeholder="0.00"/>
+        </div>
+      </div>
+      <div class="form-row">
         <div class="form-group-m">
           <label>Reorder Level</label>
           <input type="number" id="fItemReorder" min="0" placeholder="e.g. 20"/>
         </div>
-      </div>
-      <div class="form-group-m">
-        <label>Expiry Date</label>
-        <input type="date" id="fItemExpiry"/>
+        <div class="form-group-m">
+          <label>Expiry Date</label>
+          <input type="date" id="fItemExpiry"/>
+        </div>
       </div>
       <p style="font-size:11px;color:var(--text-soft);margin-top:4px">
         💡 Editing an existing batch only updates name/price/category/expiry — not quantity.
@@ -765,30 +794,30 @@
         </div>
       </div>
 
-      <!-- Item Code with autocomplete -->
+      <!-- Item Name with autocomplete — THIS is now what you search/type -->
       <div class="form-group-m">
-        <label>Item Code</label>
+        <label>Item Name</label>
         <div style="display:flex;gap:8px;align-items:center">
-          <input type="text" id="fStockCode"
-            list="stockCodeList"
-            placeholder="e.g. MED001"
+          <input type="text" id="fStockName"
+            list="stockNameList"
+            placeholder="Start typing a medicine name…"
             autocomplete="off"
-            style="flex:1;font-family:monospace;font-weight:700;font-size:13px;letter-spacing:.5px;text-transform:uppercase"
-            oninput="onStockCodeInput(this.value)"/>
-          <datalist id="stockCodeList"></datalist>
-          <span id="fStockCodeIcon" style="font-size:18px;flex-shrink:0;width:22px;text-align:center"></span>
+            style="flex:1;font-weight:600;font-size:13.5px"
+            oninput="onStockNameInput(this.value)"/>
+          <datalist id="stockNameList"></datalist>
+          <span id="fStockNameIcon" style="font-size:18px;flex-shrink:0;width:22px;text-align:center"></span>
         </div>
       </div>
 
       <!-- Info banner (autofilled, readonly) -->
       <div id="fStockInfoBanner" style="display:none;border-radius:8px;padding:9px 13px;font-size:12.5px;font-weight:600;border:1px solid"></div>
 
-      <!-- Item Name (autofilled) -->
+      <!-- Item Code (auto-filled, read-only — kept visible purely for identification) -->
       <div class="form-group-m">
-        <label>Item Name</label>
-        <input type="text" id="fStockName" readonly
-          style="background:var(--bg);color:var(--text-mid);font-weight:600"
-          placeholder="Auto-filled from item code"/>
+        <label>Item Code <span style="font-size:10px;color:var(--text-soft);font-weight:400">— for identification only</span></label>
+        <input type="text" id="fStockCode" readonly
+          style="background:var(--bg);color:var(--text-mid);font-weight:700;font-family:monospace;letter-spacing:.5px"
+          placeholder="Auto-filled from item name"/>
       </div>
 
       <!-- Unit (autofilled, readonly) -->
@@ -813,6 +842,15 @@
           <span style="position:absolute;left:10px;top:50%;transform:translateY(-50%);color:var(--text-soft);font-weight:700;pointer-events:none">₱</span>
           <input type="number" id="fStockPrice" min="0" step="0.01" placeholder="0.00"
             style="padding-left:22px" oninput="_stockComputeTotal()"/>
+        </div>
+      </div>
+
+      <!-- Cost (Stock IN only) -->
+      <div class="form-group-m" id="fStockCostRow">
+        <label>Cost per Unit (₱) <span style="font-size:10px;color:var(--text-soft);font-weight:400">— acquisition cost, used for profit reporting</span></label>
+        <div style="position:relative">
+          <span style="position:absolute;left:10px;top:50%;transform:translateY(-50%);color:var(--text-soft);font-weight:700;pointer-events:none">₱</span>
+          <input type="number" id="fStockCost" min="0" step="0.01" placeholder="0.00" style="padding-left:22px"/>
         </div>
       </div>
 
@@ -963,7 +1001,7 @@
           <button onclick="_hideCsvPane()" style="background:none;border:none;cursor:pointer;color:var(--text-soft);font-size:18px;line-height:1">×</button>
         </div>
         <div style="font-size:12px;color:var(--text-mid);margin-bottom:10px;line-height:1.6">
-          <strong>New Items format:</strong> <code style="background:#fff;padding:1px 6px;border-radius:4px;font-size:11px">code, name, category, qty, unit, price, reorder, expiry</code><br>
+          <strong>New Items format:</strong> <code style="background:#fff;padding:1px 6px;border-radius:4px;font-size:11px">code, name, category, qty, unit, price, cost, reorder, expiry</code><br>
           <strong>Restock format:</strong> <code style="background:#fff;padding:1px 6px;border-radius:4px;font-size:11px">code, qty, expiry, remarks</code>
           &nbsp;— the first row can be a header (it will be skipped automatically).
         </div>

@@ -50,6 +50,19 @@ create table if not exists stock_log (
   by_user    text not null
 );
 
+-- ════════════════════════════════════════════════
+-- MIGRATION — run this if you already have an existing database from
+-- before the Cost/Profit + Category Reports update. Safe to run on a
+-- fresh database too (IF NOT EXISTS guards make it a no-op there).
+-- ════════════════════════════════════════════════
+alter table inventory    add column if not exists cost   numeric(10,2) not null default 0;
+alter table transactions add column if not exists profit numeric(10,2) not null default 0;
+-- NOTE: `category` on inventory is a free-text column with no enum/check
+-- constraint, so switching the in-app CATEGORIES list (Produce, Branded,
+-- Generics, Self Care, Glass Shelf, Diapers, Milk, Refrigerator, Medical
+-- Supplies) requires NO schema change — existing rows simply keep whatever
+-- string they had until edited.
+
 -- Enable Row Level Security and allow the anon key full access.
 -- NOTE: this matches the app's CURRENT auth model (client-side role
 -- check only, no Supabase Auth) — anyone with the anon key can read/write
@@ -114,6 +127,7 @@ function toDbInventory(item) {
     qty:        item.qty,
     unit:       item.unit,
     price:      item.price,
+    cost:       item.cost ?? 0,
     expiry:     item.expiry || null,
     reorder:    item.reorder || 0,
     date_added: item.dateAdded || null,
@@ -129,6 +143,7 @@ function fromDbInventory(row) {
     qty:       row.qty,
     unit:      row.unit,
     price:     parseFloat(row.price),
+    cost:      parseFloat(row.cost || 0),
     expiry:    row.expiry,
     reorder:   row.reorder || 0,
     dateAdded: row.date_added,
@@ -145,6 +160,7 @@ function toDbTransaction(t) {
     discount_pct:   t.discountPct || 0,
     disc_amt:       t.discAmt || 0,
     total:          t.total,
+    profit:         t.profit ?? 0,
     cash_tendered:  t.cashTendered || null,
     change:         t.change || null,
     cashier:        t.cashier,
@@ -162,6 +178,7 @@ function fromDbTransaction(row) {
     discountPct:   parseFloat(row.discount_pct),
     discAmt:       parseFloat(row.disc_amt),
     total:         parseFloat(row.total),
+    profit:        parseFloat(row.profit || 0),
     cashTendered:  row.cash_tendered ? parseFloat(row.cash_tendered) : null,
     change:        row.change ? parseFloat(row.change) : null,
     cashier:       row.cashier,

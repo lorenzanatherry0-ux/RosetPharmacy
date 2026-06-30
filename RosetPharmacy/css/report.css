@@ -5,6 +5,55 @@
 
 @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600;700&family=Syne:wght@600;700;800&display=swap');
 
+/* ── CATEGORY LANDING GRID ── */
+.rpt-cat-grid {
+  display: grid; grid-template-columns: repeat(4, 1fr);
+  gap: 14px; margin-bottom: 16px;
+}
+.rpt-cat-card {
+  background: var(--surface); border: 1px solid var(--border);
+  border-radius: 12px; padding: 22px 18px;
+  cursor: pointer; transition: all .15s;
+  box-shadow: var(--shadow-sm);
+  display: flex; flex-direction: column; gap: 8px;
+}
+.rpt-cat-card:hover {
+  border-color: var(--teal); transform: translateY(-2px);
+  box-shadow: 0 6px 16px rgba(0,0,0,.08);
+}
+.rpt-cat-icon {
+  font-size: 28px; width: 52px; height: 52px;
+  display: flex; align-items: center; justify-content: center;
+  border-radius: 12px; background: var(--teal-light); margin-bottom: 4px;
+}
+.rpt-cat-title { font-family: 'Syne', sans-serif; font-size: 15px; font-weight: 800; color: var(--text); }
+.rpt-cat-sub   { font-size: 12px; color: var(--text-soft); line-height: 1.45; }
+
+/* ── BACK BUTTON + DETAIL HEADING ── */
+.rpt-back-btn {
+  display: inline-flex; align-items: center; gap: 6px;
+  background: none; border: none; cursor: pointer;
+  font-size: 12.5px; font-weight: 700; color: var(--text-soft);
+  padding: 4px 0; margin-bottom: 10px; transition: color .12s;
+}
+.rpt-back-btn:hover { color: var(--teal-dark); }
+.rpt-detail-heading { margin-bottom: 14px; }
+.rpt-detail-title { font-family: 'Syne', sans-serif; font-size: 17px; font-weight: 800; color: var(--text); }
+.rpt-detail-sub   { font-size: 12.5px; color: var(--text-soft); margin-top: 2px; }
+
+/* ── EMPTY STATE (shown until Generate Report is clicked) ── */
+.rpt-empty-state {
+  text-align: center; padding: 48px 24px;
+  background: var(--surface); border: 1.5px dashed var(--border);
+  border-radius: 12px; margin-bottom: 12px;
+}
+.rpt-empty-icon { font-size: 34px; margin-bottom: 10px; opacity: .6; }
+.rpt-empty-state p { font-size: 13px; color: var(--text-soft); }
+
+@media (max-width: 900px) {
+  .rpt-cat-grid { grid-template-columns: repeat(2, 1fr); }
+}
+
 /* ── CONTROLS BAR ── */
 .rpt-controls {
   display: flex; flex-wrap: wrap; align-items: center; gap: 10px;
@@ -44,29 +93,6 @@
   cursor: pointer; transition: all .12s; letter-spacing: .3px;
 }
 .rpt-apply-btn:hover { opacity: .85; }
-.rpt-range-label {
-  margin-left: auto; font-family: 'JetBrains Mono', monospace;
-  font-size: 11px; font-weight: 600; color: var(--text-soft);
-  background: var(--bg); padding: 4px 12px; border-radius: 6px;
-  border: 1px solid var(--border); white-space: nowrap;
-}
-
-/* ── TAB BAR ── */
-.rpt-tabs {
-  display: flex; gap: 0; margin-bottom: 16px;
-  border-bottom: 2px solid var(--border);
-}
-.rpt-tab-btn {
-  padding: 8px 18px; border: none; background: none;
-  font-size: 12.5px; font-weight: 700;
-  color: var(--text-soft); cursor: pointer;
-  border-bottom: 2px solid transparent;
-  margin-bottom: -2px; transition: all .12s;
-  display: flex; align-items: center; gap: 6px;
-  letter-spacing: .2px;
-}
-.rpt-tab-btn:hover { color: var(--text); }
-.rpt-tab-btn.active { color: var(--teal-dark); border-bottom-color: var(--teal); }
 
 /* ── PANELS ── */
 .rpt-panel { display: none; }
@@ -214,7 +240,7 @@
 
 /* ── PRINT ── */
 @media print {
-  .sidebar, .rpt-controls, .rpt-tabs, .rpt-print-btn, .page-header { display: none !important; }
+  .sidebar, .rpt-controls, .rpt-cat-grid, .rpt-back-btn, .rpt-empty-state, .rpt-print-btn, .page-header { display: none !important; }
   .main { margin: 0 !important; padding: 0 !important; }
   .rpt-panel { display: block !important; }
   .rpt-card  { box-shadow: none !important; page-break-inside: avoid; }
