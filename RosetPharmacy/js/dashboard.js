@@ -16,7 +16,6 @@ function renderDashboard() {
   // ── Compute alert groups once ──────────────────────────────────────────
   const outIds  = [];   // completely out of stock
   const lowIds  = [];   // qty > 0 but at/below reorder level
-  const expItems = [];  // expired or expiring within 30 days
 
   itemIds.forEach(id => {
     const batches  = inventory.filter(i => i.id === id);
@@ -30,22 +29,11 @@ function renderDashboard() {
     } else if (reorder > 0 && totalQty <= reorder) {
       lowIds.push({ id, name, qty: totalQty, reorder, unit: ref?.unit || "" });
     }
-
-    batches.forEach(b => {
-      const diff = Math.ceil((new Date(b.expiry) - new Date()) / (1000 * 60 * 60 * 24));
-      if (diff <= 30) {
-        expItems.push({
-          id, name, batchNo: b.batchNo, expiry: b.expiry, qty: b.qty,
-          expired: diff <= 0, daysLeft: diff
-        });
-      }
-    });
   });
 
   // ── Stat cards (all 4 clickable) ──────────────────────────────────────
   const outBadge = outIds.length  > 0 ? `<span class="dash-badge dash-badge-red">${outIds.length}</span>`  : "";
   const lowBadge = lowIds.length  > 0 ? `<span class="dash-badge dash-badge-warn">${lowIds.length}</span>` : "";
-  const expBadge = expItems.length > 0 ? `<span class="dash-badge dash-badge-warn">${expItems.length}</span>` : "";
 
   document.getElementById("statsGrid").innerHTML = `
     <div class="stat-card dash-clickable" onclick="navigate('transactions')" title="View today's transactions">
@@ -118,38 +106,19 @@ function renderDashboard() {
   if (recent.length === 0) {
     recentEl.innerHTML = `<li style="color:var(--text-soft);font-size:13px;padding:8px 0">No transactions yet.</li>`;
   } else {
-    recentEl.innerHTML = recent.map(t => `
-      <li class="recent-item">
-        <div>
-          <div class="recent-name">${t.id}</div>
-          <div class="recent-meta">${t.date}${t.time ? " · " + t.time : ""} · ${t.cashier} · ${t.paymentMethod}</div>
-        </div>
-        <div class="recent-amount">₱${t.total.toFixed(2)}</div>
-      </li>`).join("");
-  }
-
-  // ── Expiry alerts strip (compact, below the grid) ─────────────────────
-  const expiryEl = document.getElementById("expiryAlertsBox");
-  if (expiryEl) {
-    if (expItems.length === 0) {
-      expiryEl.innerHTML = `<span style="color:var(--text-soft);font-size:13px">✅ No expiry alerts.</span>`;
-    } else {
-      expiryEl.innerHTML = expItems.map(e => {
-        const isExp = e.expired;
-        return `
-          <div class="dash-expiry-row ${isExp ? "dash-expiry-critical" : ""}">
-            <span style="font-size:15px">${isExp ? "🔴" : "⚠️"}</span>
-            <span class="dash-expiry-name">${escapeHtml(e.name)}</span>
-            <span class="dash-expiry-batch">Batch #${e.batchNo}</span>
-            <span class="dash-expiry-date">${e.expiry}</span>
-            <span class="dash-expiry-status">
-              ${isExp
-                ? `<span class="tag tag-red" style="font-size:10px">Expired</span>`
-                : `<span class="tag tag-warn" style="font-size:10px">Expires in ${e.daysLeft}d</span>`}
-            </span>
-          </div>`;
-      }).join("");
-    }
+    recentEl.innerHTML = recent.map(t => {
+      // Show product names (e.g. "Paracetamol ×10, Vitamin C ×2") instead of
+      // the raw TXN code — much easier to read at a glance while managing the store.
+      const itemSummary = t.items.map(i => `${escapeHtml(i.name)} ×${i.qty}`).join(", ");
+      return `
+        <li class="recent-item">
+          <div style="min-width:0">
+            <div class="recent-name" style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:340px">${itemSummary}</div>
+            <div class="recent-meta">${t.id} · ${t.date}${t.time ? " · " + t.time : ""} · ${t.cashier}</div>
+          </div>
+          <div class="recent-amount">₱${t.total.toFixed(2)}</div>
+        </li>`;
+    }).join("");
   }
 
   // Store computed data for the modal to reference

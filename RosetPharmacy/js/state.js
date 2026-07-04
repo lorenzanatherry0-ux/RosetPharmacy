@@ -106,6 +106,22 @@ function toast(type, msg) {
 function openModal(id)  { document.getElementById(id).classList.remove("hidden"); }
 function closeModal(id) { document.getElementById(id).classList.add("hidden"); }
 
+/* ── AUTO ITEM CODE GENERATOR ──────────────────
+   Finds the highest existing MED### number across
+   all inventory and returns the next one in sequence.
+   Used by openAddItemModal() (inventory.js) and the
+   Bulk Add modal (bulk.js) so codes are always unique
+   and continuous regardless of how items were added. */
+function nextItemCode(extraCodes = []) {
+  const existing = inventory.map(i => i.id)
+    .concat(extraCodes)
+    .filter(id => /^MED\d+$/.test(id))
+    .map(id => parseInt(id.replace("MED", "")))
+    .filter(n => !isNaN(n));
+  const max = existing.length > 0 ? Math.max(...existing) : 0;
+  return "MED" + String(max + 1).padStart(3, "0");
+}
+
 function populateCatDropdowns() {
   ["#posCatFilter", "#invCatFilter"].forEach(sel => {
     const el = document.querySelector(sel);

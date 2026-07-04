@@ -17,18 +17,15 @@ let bulkMode         = "new";   // "new" | "restock"
 /* ══════════════════════════════════════════════
    AUTO-CODE GENERATOR
 ══════════════════════════════════════════════ */
-function nextItemCode() {
-  const existing = inventory.map(i => i.id)
-    .filter(id => /^MED\d+$/.test(id))
-    .map(id => parseInt(id.replace("MED", "")))
-    .filter(n => !isNaN(n));
-  bulkRows.forEach(r => {
+/* nextItemCode() is defined globally in state.js.
+   We wrap it here to also pass any codes already in the current bulk
+   batch so intra-batch rows don't collide with each other. */
+function nextItemCodeForBatch() {
+  const batchCodes = bulkRows.map(r => {
     const el = document.getElementById(`bCode_${r}`);
-    if (el && /^MED\d+$/.test(el.value.trim()))
-      existing.push(parseInt(el.value.trim().replace("MED", "")));
-  });
-  const max = existing.length > 0 ? Math.max(...existing) : 0;
-  return "MED" + String(max + 1).padStart(3, "0");
+    return el ? el.value.trim().toUpperCase() : "";
+  }).filter(Boolean);
+  return nextItemCode(batchCodes);
 }
 
 /* ══════════════════════════════════════════════
@@ -114,7 +111,7 @@ function bulkAddRow() {
   if (bulkMode === "restock") {
     tr.innerHTML = _restockRowHtml(rid);
   } else {
-    const code = nextItemCode();
+    const code = nextItemCodeForBatch();
     tr.innerHTML = _newItemRowHtml(rid, code);
   }
 
@@ -537,7 +534,7 @@ function applyBulkCsv() {
     } else {
       // Expected: code, name, category, qty, unit, price, cost, reorder, expiry
       const [code="", name="", cat="", qty="", unit="", price="", cost="", reorder="", expiry=""] = cells;
-      const autoCode = code.trim().toUpperCase() || nextItemCode();
+      const autoCode = code.trim().toUpperCase() || nextItemCodeForBatch();
       tr.innerHTML = _newItemRowHtml(rid, autoCode);
       tbody.appendChild(tr);
       _setVal(`bCode_${rid}`,    autoCode);

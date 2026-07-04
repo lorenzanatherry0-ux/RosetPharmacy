@@ -69,11 +69,19 @@ function renderInventory() {
 function openAddItemModal() {
   document.getElementById("itemModalTitle").textContent = "Add New Item";
   document.getElementById("editItemId").value = "";
-  ["fItemCode", "fItemName", "fItemQty", "fItemUnit", "fItemPrice", "fItemCost", "fItemExpiry", "fItemReorder"].forEach(id => {
+
+  // Auto-generate the next sequential item code so the manager never
+  // has to think about it — just keep adding items and codes increment.
+  const autoCode = nextItemCode();
+  ["fItemName", "fItemQty", "fItemUnit", "fItemPrice", "fItemCost", "fItemExpiry", "fItemReorder"].forEach(id => {
     const el = document.getElementById(id);
     if (el) el.value = "";
   });
-  document.getElementById("fItemCode").readOnly = false;
+  const codeEl = document.getElementById("fItemCode");
+  if (codeEl) {
+    codeEl.value    = autoCode;
+    codeEl.readOnly = false;   // editable in case the manager wants a custom code
+  }
   document.getElementById("newBatchRow")?.classList.add("hidden");
   openModal("itemModal");
 }

@@ -163,18 +163,11 @@
       <!-- 4 clickable stat cards -->
       <div class="stats-grid" id="statsGrid"></div>
 
-      <!-- Recent transactions + expiry alerts side by side -->
-      <div class="dash-grid">
+      <!-- Recent transactions -->
+      <div class="dash-grid" style="grid-template-columns:1fr">
         <div class="card">
           <div class="card-header"><span class="card-title">Recent Transactions</span></div>
           <div class="card-body"><ul class="recent-list" id="recentTxns"></ul></div>
-        </div>
-        <div class="card">
-          <div class="card-header">
-            <span class="card-title">Expiry Alerts</span>
-            <span style="font-size:11px;color:var(--text-soft);font-weight:400">Expired or expiring within 30 days</span>
-          </div>
-          <div class="card-body" id="expiryAlertsBox" style="display:flex;flex-direction:column;gap:6px;padding:12px 16px"></div>
         </div>
       </div>
     </section>
