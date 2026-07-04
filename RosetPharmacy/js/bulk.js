@@ -92,7 +92,7 @@ function _newItemHeaders() {
 }
 
 function _restockHeaders() {
-  const cols = ["#", "Item Code *", "Item Name (auto)", "Qty to Add *", "Expiry *", "Supplier / Remarks", ""];
+  const cols = ["#", "Item Name *", "Item Code (auto)", "Qty to Add *", "Expiry *", "Supplier / Remarks", ""];
   return cols.map((c, i) => `<th style="${_thStyle(i === 0 || i === 6)}">${c}</th>`).join("");
 }
 
@@ -143,19 +143,35 @@ function _newItemRowHtml(rid, code) {
 }
 
 function _restockRowHtml(rid) {
+  // Build a datalist of all known item names for this row
+  const opts = [...new Map(inventory.map(i => [i.id, i])).values()]
+    .map(i => `<option value="${escapeHtml(i.name)}" data-id="${i.id}">`)
+    .join("");
+
   return `
     <td style="padding:6px 8px;text-align:center;font-size:12px;color:var(--text-soft);font-weight:600">${bulkRows.length}</td>
+
+    <!-- Item Name — editable/searchable (primary field) -->
     <td style="padding:4px">
-      <input id="bCode_${rid}" class="bulk-cell" type="text" placeholder="MED001"
-        oninput="onRestockCodeInput(${rid})" style="width:92px"/>
+      <input id="bName_${rid}" class="bulk-cell" type="text"
+        list="bNameList_${rid}"
+        placeholder="Start typing name…"
+        autocomplete="off"
+        oninput="onRestockNameInput(${rid})"
+        style="width:210px;font-weight:500"/>
+      <datalist id="bNameList_${rid}">${opts}</datalist>
     </td>
+
+    <!-- Item Code — auto-filled read-only (for identification) -->
     <td style="padding:4px">
-      <input id="bName_${rid}" class="bulk-cell" type="text" placeholder="(auto-filled)"
-        readonly style="width:180px;background:#f8fbfa;color:var(--text-mid);font-style:italic"/>
+      <input id="bCode_${rid}" class="bulk-cell" type="text"
+        readonly placeholder="(auto)"
+        style="width:90px;background:#f3f6f5;color:var(--text-mid);font-family:monospace;font-size:12px;font-weight:700;letter-spacing:.4px"/>
     </td>
-    <td style="padding:4px"><input id="bQty_${rid}"    class="bulk-cell" type="number" min="1" placeholder="0"      oninput="onBulkInput(${rid})" style="width:80px;text-align:right"/></td>
-    <td style="padding:4px"><input id="bExpiry_${rid}" class="bulk-cell" type="date"                                 oninput="onBulkInput(${rid})" style="width:136px"/></td>
-    <td style="padding:4px"><input id="bRemarks_${rid}"class="bulk-cell" type="text"   placeholder="e.g. Supplier X, Lot A1"                       style="width:200px"/></td>
+
+    <td style="padding:4px"><input id="bQty_${rid}"     class="bulk-cell" type="number" min="1" placeholder="0"                  oninput="onBulkInput(${rid})" style="width:80px;text-align:right"/></td>
+    <td style="padding:4px"><input id="bExpiry_${rid}"  class="bulk-cell" type="date"                                              oninput="onBulkInput(${rid})" style="width:136px"/></td>
+    <td style="padding:4px"><input id="bRemarks_${rid}" class="bulk-cell" type="text"   placeholder="e.g. Supplier X, Lot A1"                                    style="width:200px"/></td>
     <td style="padding:4px 8px;text-align:center">${_deleteBtn(rid)}</td>`;
 }
 
@@ -169,15 +185,38 @@ function _deleteBtn(rid) {
   </button>`;
 }
 
-/* ── Restock: auto-fill item name when code is entered ── */
-function onRestockCodeInput(rid) {
-  const code  = (document.getElementById(`bCode_${rid}`)?.value || "").trim().toUpperCase();
+/* ── Restock: auto-fill Item Code + details when a name is typed/picked ── */
+function onRestockNameInput(rid) {
+  const typed  = (document.getElementById(`bName_${rid}`)?.value || "").trim();
+  const codeEl = document.getElementById(`bCode_${rid}`);
   const nameEl = document.getElementById(`bName_${rid}`);
-  const match  = inventory.find(i => i.id === code);
-  if (nameEl) {
-    nameEl.value      = match ? match.name : (code ? "⚠ Not found" : "");
-    nameEl.style.color = match ? "var(--text-mid)" : "var(--danger)";
+
+  if (!typed) {
+    if (codeEl) { codeEl.value = ""; codeEl.style.color = ""; }
+    if (nameEl) { nameEl.style.color = ""; }
+    onBulkInput(rid);
+    return;
   }
+
+  // Case-insensitive exact match first, then startsWith for fast typing
+  const match =
+    inventory.find(i => i.name.toLowerCase() === typed.toLowerCase()) ||
+    inventory.find(i => i.name.toLowerCase().startsWith(typed.toLowerCase()));
+
+  if (match) {
+    if (codeEl) {
+      codeEl.value      = match.id;
+      codeEl.style.color = "var(--teal-dark)";
+    }
+    if (nameEl) nameEl.style.color = "var(--text)";
+  } else {
+    if (codeEl) {
+      codeEl.value      = "";
+      codeEl.style.color = "";
+    }
+    if (nameEl) nameEl.style.color = "var(--danger)";
+  }
+
   onBulkInput(rid);
 }
 
@@ -224,9 +263,14 @@ function onBulkInput(rid) {
 }
 
 function getRowValues(rid) {
+  const nameVal = (document.getElementById(`bName_${rid}`)?.value || "").trim();
+  const codeVal = (document.getElementById(`bCode_${rid}`)?.value || "").trim().toUpperCase();
+
   return {
-    code   : (document.getElementById(`bCode_${rid}`)?.value    || "").trim().toUpperCase(),
-    name   : (document.getElementById(`bName_${rid}`)?.value    || "").trim(),
+    // In restock mode the code is auto-filled from the name lookup.
+    // In new-items mode the code is manually typed.
+    code   : codeVal,
+    name   : nameVal,
     cat    : (document.getElementById(`bCat_${rid}`)?.value     || CATEGORIES[0]),
     qty    : parseInt(document.getElementById(`bQty_${rid}`)?.value)    || 0,
     unit   : (document.getElementById(`bUnit_${rid}`)?.value    || "").trim(),
@@ -241,15 +285,16 @@ function getRowValues(rid) {
 function isRowEmpty(rid) {
   const v = getRowValues(rid);
   if (bulkMode === "restock")
-    return !v.code && v.qty === 0;
+    return !v.name && v.qty === 0;
   return !v.name && !v.unit && !v.expiry && v.qty === 0 && v.price === 0;
 }
 
 function isRowValid(rid) {
   const v = getRowValues(rid);
   if (bulkMode === "restock") {
-    const exists = inventory.find(i => i.id === v.code);
-    return !!v.code && !!exists && v.qty > 0 && !!v.expiry;
+    // Name must have resolved to a known item (code auto-filled)
+    const exists = v.code && inventory.find(i => i.id === v.code);
+    return !!v.name && !!exists && v.qty > 0 && !!v.expiry;
   }
   return !!v.code && !!v.name && !!v.unit && !!v.expiry && v.qty > 0;
 }
@@ -263,9 +308,9 @@ function validateBulkRow(rid) {
   let fields;
 
   if (bulkMode === "restock") {
-    const exists = inventory.find(i => i.id === v.code);
+    const exists = v.code && inventory.find(i => i.id === v.code);
     fields = [
-      { id: `bCode_${rid}`,   ok: !!v.code && !!exists },
+      { id: `bName_${rid}`,   ok: !!v.name && !!exists },
       { id: `bQty_${rid}`,    ok: v.qty > 0 },
       { id: `bExpiry_${rid}`, ok: !!v.expiry },
     ];
@@ -327,20 +372,21 @@ async function saveBulkItems() {
     const v = getRowValues(rid);
     const label = `Row ${i + 1}`;
 
-    if (!v.code)    errors.push(`${label}: Item code is required.`);
     if (!v.expiry)  errors.push(`${label}: Expiry date is required.`);
     if (v.qty <= 0) errors.push(`${label}: Quantity must be > 0.`);
 
     if (bulkMode === "new") {
+      if (!v.code) errors.push(`${label}: Item code is required.`);
       if (!v.name) errors.push(`${label}: Name is required.`);
       if (!v.unit) errors.push(`${label}: Unit is required.`);
       if (inventory.find(i => i.id === v.code))        errors.push(`${label}: Code "${v.code}" already exists. Use Restock mode to add stock.`);
       if (codesInBatch.includes(v.code))               errors.push(`${label}: Duplicate code "${v.code}" in this batch.`);
     } else {
-      const exists = inventory.find(i => i.id === v.code);
-      if (!exists) errors.push(`${label}: Code "${v.code}" not found in inventory.`);
+      if (!v.name) errors.push(`${label}: Item name is required — start typing to search.`);
+      const exists = v.code && inventory.find(i => i.id === v.code);
+      if (v.name && !exists) errors.push(`${label}: "${v.name}" not found — pick a suggestion from the dropdown.`);
       if (codesInBatch.filter(c => c === v.code).length >= 1)
-        errors.push(`${label}: "${v.code}" appears more than once. Combine into one row or save separately.`);
+        errors.push(`${label}: "${v.name}" appears more than once. Combine into one row or save separately.`);
     }
     codesInBatch.push(v.code);
   });
@@ -478,15 +524,16 @@ function applyBulkCsv() {
     tr.style.cssText = "transition:background .15s";
 
     if (bulkMode === "restock") {
-      // Expected: code, qty, expiry, remarks (optional)
-      const [code="", qty="", expiry="", ...rest] = cells;
+      // New column order (name-first): name, qty, expiry, remarks (optional)
+      const [name="", qty="", expiry="", ...rest] = cells;
       tr.innerHTML = _restockRowHtml(rid);
       tbody.appendChild(tr);
-      _setVal(`bCode_${rid}`,    code.trim().toUpperCase());
+      _setVal(`bName_${rid}`,    name.trim());
       _setVal(`bQty_${rid}`,     qty.trim());
       _setVal(`bExpiry_${rid}`,  expiry.trim());
       _setVal(`bRemarks_${rid}`, rest.join(",").trim());
-      onRestockCodeInput(rid);
+      // Trigger the name lookup so the Code field auto-fills
+      onRestockNameInput(rid);
     } else {
       // Expected: code, name, category, qty, unit, price, cost, reorder, expiry
       const [code="", name="", cat="", qty="", unit="", price="", cost="", reorder="", expiry=""] = cells;
@@ -537,7 +584,7 @@ function _parseCsvLine(line) {
 function downloadCsvTemplate() {
   let csv;
   if (bulkMode === "restock") {
-    csv = "code,qty,expiry,remarks\nMED001,100,2027-12-31,\"Supplier ABC Lot 1\"\nMED002,200,2027-06-30,\"Monthly delivery\"\n";
+    csv = "name,qty,expiry,remarks\n\"Paracetamol 500mg\",100,2027-12-31,\"Supplier ABC Lot 1\"\n\"Amoxicillin 500mg\",200,2027-06-30,\"Monthly delivery\"\n";
   } else {
     csv = "code,name,category,qty,unit,price,cost,reorder,expiry\nMED011,\"Aspirin 100mg\",\"Generics\",150,tablet,4.50,2.70,30,2027-12-31\nMED012,\"Vitamin D3 1000IU\",\"Self Care\",80,capsule,12.00,7.00,20,2027-08-01\n";
   }

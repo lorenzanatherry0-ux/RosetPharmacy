@@ -14,7 +14,7 @@ const USERS = [
    Any item whose stored category is no longer in this list will just show
    up un-tagged in category filters until it's re-edited. */
 const CATEGORIES = [
-  "Produce", "Branded", "Generics", "Self Care", "Glass Shelf",
+  "Branded", "Generics", "Self Care", "Glass Shelf",
   "Diapers", "Milk", "Refrigerator", "Medical Supplies"
 ];
 
