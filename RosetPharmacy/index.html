@@ -159,15 +159,22 @@
           <div class="page-sub" id="dashDate">Today</div>
         </div>
       </div>
+
+      <!-- 4 clickable stat cards -->
       <div class="stats-grid" id="statsGrid"></div>
+
+      <!-- Recent transactions + expiry alerts side by side -->
       <div class="dash-grid">
         <div class="card">
           <div class="card-header"><span class="card-title">Recent Transactions</span></div>
           <div class="card-body"><ul class="recent-list" id="recentTxns"></ul></div>
         </div>
         <div class="card">
-          <div class="card-header"><span class="card-title">Alerts</span></div>
-          <div class="card-body" id="alertsBox"></div>
+          <div class="card-header">
+            <span class="card-title">Expiry Alerts</span>
+            <span style="font-size:11px;color:var(--text-soft);font-weight:400">Expired or expiring within 30 days</span>
+          </div>
+          <div class="card-body" id="expiryAlertsBox" style="display:flex;flex-direction:column;gap:6px;padding:12px 16px"></div>
         </div>
       </div>
     </section>
@@ -917,6 +924,24 @@
 </div>
 
 <!-- Confirm Delete -->
+<!-- Stock Alert Modal — shared for Out of Stock + Low Stock popups -->
+<div class="modal-overlay hidden" id="stockAlertModal">
+  <div class="modal" style="max-width:620px;width:95vw">
+    <div class="modal-header">
+      <div>
+        <span class="modal-title" id="stockAlertModalTitle">Stock Alert</span>
+        <div id="stockAlertModalSub" style="font-size:12px;color:var(--text-soft);margin-top:2px;font-weight:400"></div>
+      </div>
+      <button class="modal-close" onclick="closeModal('stockAlertModal')">×</button>
+    </div>
+    <div class="modal-body" id="stockAlertModalBody" style="padding:0;max-height:68vh;overflow-y:auto"></div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" onclick="closeModal('stockAlertModal')">Close</button>
+      <button class="btn btn-green" onclick="closeModal('stockAlertModal');openStockModal()">+ Restock Item</button>
+    </div>
+  </div>
+</div>
+
 <div class="modal-overlay hidden" id="confirmModal">
   <div class="modal" style="max-width:420px">
     <div class="modal-header">
