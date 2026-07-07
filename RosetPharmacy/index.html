@@ -427,31 +427,53 @@
       <div class="page-header">
         <div>
           <div class="page-title">Stock Adjustment</div>
-          <div class="page-sub">Fix miscounts, record returns, or correct any stock without a full restock entry</div>
+          <div class="page-sub">Correct stock counts, record returns, or fix miscounts</div>
         </div>
       </div>
 
-      <!-- Search bar -->
-      <div class="card" style="margin-bottom:16px">
-        <div class="card-body" style="padding:14px 18px">
-          <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
-            <div class="search-wrap" style="flex:1;min-width:200px">
-              <span class="search-icon">
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                  <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
-                </svg>
-              </span>
-              <input type="text" id="adjSearch" placeholder="Search by name or code…" oninput="renderAdjustmentGrid()"/>
-            </div>
-            <select class="filter-select" id="adjCatFilter" onchange="renderAdjustmentGrid()">
-              <option value="">All Categories</option>
-            </select>
-          </div>
+      <!-- Search + filter bar -->
+      <div style="display:flex;gap:10px;margin-bottom:16px;flex-wrap:wrap">
+        <div class="search-wrap" style="flex:1;min-width:220px">
+          <span class="search-icon">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
+            </svg>
+          </span>
+          <input type="text" id="adjSearch" placeholder="Search by name or item code…" oninput="renderAdjustmentTable()"/>
         </div>
+        <select class="filter-select" id="adjCatFilter" onchange="renderAdjustmentTable()">
+          <option value="">All Categories</option>
+        </select>
       </div>
 
-      <!-- Adjustment grid -->
-      <div id="adjGrid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(290px,1fr));gap:12px"></div>
+      <!-- Table -->
+      <div class="card">
+        <div class="table-wrap">
+          <table class="adj-table">
+            <thead>
+              <tr>
+                <th>Item Code</th>
+                <th>Name</th>
+                <th style="text-align:center">Current Qty</th>
+                <th style="text-align:center">Adjustment</th>
+                <th style="text-align:center">New Qty</th>
+              </tr>
+            </thead>
+            <tbody id="adjTableBody"></tbody>
+          </table>
+        </div>
+
+        <!-- Save footer -->
+        <div style="display:flex;align-items:center;justify-content:flex-end;gap:12px;padding:14px 18px;border-top:1px solid var(--border);background:var(--bg)">
+          <span id="adjSaveBadge" style="font-size:12px;color:var(--text-soft);font-weight:600"></span>
+          <button id="adjSaveBtn" class="btn btn-green" onclick="saveAllAdjustments()" disabled>
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+              <polyline points="20 6 9 17 4 12"/>
+            </svg>
+            Save Adjustments
+          </button>
+        </div>
+      </div>
     </section>
 
     <!-- ── TRANSACTIONS ── -->
