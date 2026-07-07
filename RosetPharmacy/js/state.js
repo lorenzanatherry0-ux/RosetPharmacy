@@ -3,8 +3,8 @@
 ══════════════════════════════════════════════ */
 
 const USERS = [
-  { id: 1, username: "manager",    password: "roset123", role: "manager",    name: "Maria Santos"  },
-  { id: 2, username: "pharmacist", password: "pharm123", role: "pharmacist", name: "Juan dela Cruz" },
+  { id: 1, username: "manager",    password: "roset123", role: "manager",    name: "Marjorie Portuguese" },
+  { id: 2, username: "pharmacist", password: "pharm123", role: "pharmacist", name: "Analyn"              },
 ];
 
 /* Updated category set (replaces the previous pharmacy-only list).
@@ -47,22 +47,22 @@ let transactions = [
     items:[{name:"Paracetamol 500mg", qty:10, price:3.25, cost:1.60}],
     subtotal:32.50, discountPct:0, discAmt:0, total:32.50,
     cost:16.00, profit:16.50,
-    cashTendered:50, change:17.50, cashier:"Juan dela Cruz", paymentMethod:"Cash"
+    cashTendered:50, change:17.50, cashier:"Analyn", paymentMethod:"Cash"
   },
   {
     id:"TXN002", date:"2026-03-09", time:"02:31 PM",
     items:[{name:"Vitamin C 500mg",qty:5,price:8.00,cost:4.50},{name:"Amoxicillin 500mg",qty:10,price:12.50,cost:7.80}],
     subtotal:165.00, discountPct:0, discAmt:0, total:165.00,
     cost:100.50, profit:64.50,
-    cashTendered:200, change:35.00, cashier:"Maria Santos", paymentMethod:"Cash"
+    cashTendered:200, change:35.00, cashier:"Marjorie Portuguese", paymentMethod:"Cash"
   },
 ];
 
 /* ── STOCK LOG ── */
 let stockLog = [
-  { id:"LOG001", date:"2026-03-01", itemId:"MED001", itemName:"Amoxicillin 500mg",  type:"IN",  qty:100, remarks:"Restock from supplier", by:"Maria Santos"  },
-  { id:"LOG002", date:"2026-03-05", itemId:"MED002", itemName:"Paracetamol 500mg",  type:"IN",  qty:200, remarks:"Monthly delivery",       by:"Maria Santos"  },
-  { id:"LOG003", date:"2026-03-08", itemId:"MED002", itemName:"Paracetamol 500mg",  type:"OUT", qty:10,  remarks:"POS Sale #TXN001",        by:"Juan dela Cruz"},
+  { id:"LOG001", date:"2026-03-01", itemId:"MED001", itemName:"Amoxicillin 500mg",  type:"IN",  qty:100, remarks:"Restock from supplier", by:"Marjorie Portuguese"  },
+  { id:"LOG002", date:"2026-03-05", itemId:"MED002", itemName:"Paracetamol 500mg",  type:"IN",  qty:200, remarks:"Monthly delivery",       by:"Marjorie Portuguese"  },
+  { id:"LOG003", date:"2026-03-08", itemId:"MED002", itemName:"Paracetamol 500mg",  type:"OUT", qty:10,  remarks:"POS Sale #TXN001",        by:"Analyn"},
 ];
 
 /* ── SESSION STATE ── */

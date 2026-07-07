@@ -403,7 +403,8 @@ function buildReceiptHTML(t) {
 
   return `<div class="receipt">
     <div class="receipt-header">
-      <h2>Roset Pharmacy</h2>
+      <img src="logo.jpg" alt="Roset Pharmacy" style="width:90px;height:90px;object-fit:contain;margin-bottom:6px;border-radius:8px"/>
+      <h2 style="margin:0 0 2px">Roset Pharmacy</h2>
       <p>Malaking Pulo, Tanauan Batangas</p>
       <p style="margin-top:4px">${t.date}${t.time ? " · " + t.time : ""} · ${t.id}</p>
     </div>
