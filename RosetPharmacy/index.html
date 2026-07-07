@@ -107,6 +107,15 @@
       Stock Logs
     </div>
 
+    <div class="nav-item" data-page="adjustment" onclick="navigate('adjustment')">
+      <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <circle cx="12" cy="12" r="3"/>
+        <path d="M19.07 4.93a10 10 0 0 1 0 14.14M4.93 4.93a10 10 0 0 0 0 14.14"/>
+        <line x1="12" y1="2" x2="12" y2="6"/><line x1="12" y1="18" x2="12" y2="22"/>
+      </svg>
+      Adjustment
+    </div>
+
     <div class="nav-item manager-only hidden" data-page="transactions" onclick="navigate('transactions')">
       <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
         <line x1="12" y1="1" x2="12" y2="23"/>
@@ -411,6 +420,38 @@
           </div>
         </div>
       </div>
+    </section>
+
+    <!-- ── STOCK ADJUSTMENT ── -->
+    <section id="adjustment" class="page">
+      <div class="page-header">
+        <div>
+          <div class="page-title">Stock Adjustment</div>
+          <div class="page-sub">Fix miscounts, record returns, or correct any stock without a full restock entry</div>
+        </div>
+      </div>
+
+      <!-- Search bar -->
+      <div class="card" style="margin-bottom:16px">
+        <div class="card-body" style="padding:14px 18px">
+          <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
+            <div class="search-wrap" style="flex:1;min-width:200px">
+              <span class="search-icon">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
+                </svg>
+              </span>
+              <input type="text" id="adjSearch" placeholder="Search by name or code…" oninput="renderAdjustmentGrid()"/>
+            </div>
+            <select class="filter-select" id="adjCatFilter" onchange="renderAdjustmentGrid()">
+              <option value="">All Categories</option>
+            </select>
+          </div>
+        </div>
+      </div>
+
+      <!-- Adjustment grid -->
+      <div id="adjGrid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(290px,1fr));gap:12px"></div>
     </section>
 
     <!-- ── TRANSACTIONS ── -->
@@ -988,8 +1029,6 @@
             <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
             Add Row
           </button>
-          <button class="btn btn-ghost btn-sm" onclick="bulkAddRows(5)">+5 Rows</button>
-          <button class="btn btn-ghost btn-sm" onclick="bulkAddRows(10)">+10 Rows</button>
           <div style="width:1px;height:22px;background:var(--border);flex-shrink:0"></div>
           <!-- CSV import toggle -->
           <button class="btn btn-ghost btn-sm" onclick="_showCsvPane()" style="color:var(--teal-dark)">
@@ -1082,6 +1121,7 @@
 <script src="js/stocklog.js"></script>
 <script src="js/bulk.js"></script>
 <script src="js/report.js"></script>
+  <script src="js/adjustment.js"></script>
 
 <script>
 /* ── bulk-mode-tab active style (injected so no extra CSS file needed) ── */

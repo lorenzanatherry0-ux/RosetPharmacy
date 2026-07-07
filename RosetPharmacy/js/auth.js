@@ -99,10 +99,9 @@ function navigate(page) {
   if (navEl) navEl.classList.add("active");
 
   // Init report page fresh each time it's opened
-  if (page === "reports") initReports();
-  // Transaction History defaults to TODAY's transactions each time it's
-  // opened (daily-reset view) — the date picker lets the manager look back.
+  if (page === "reports")    initReports();
   if (page === "transactions") initTransactionsView();
+  if (page === "adjustment") initAdjustmentPage();
 }
 
 function initTransactionsView() {

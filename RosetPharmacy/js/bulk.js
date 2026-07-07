@@ -51,7 +51,7 @@ function _bulkReset() {
   document.getElementById("bulkTableBody").innerHTML = "";
   document.getElementById("bulkErrorBar").classList.add("hidden");
   _hideCsvPane();
-  for (let i = 0; i < 5; i++) bulkAddRow();
+  bulkAddRow();   // start with ONE clean row — user adds more as needed
   updateBulkCounts();
 }
 
