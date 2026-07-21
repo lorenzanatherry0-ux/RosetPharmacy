@@ -51,7 +51,6 @@ function openStockModal() {
   document.getElementById("fStockQty").value     = "";
   document.getElementById("fStockPrice").value   = "";
   document.getElementById("fStockCost").value    = "";
-  document.getElementById("fStockExpiry").value  = "";
   document.getElementById("fStockRemarks").value = "";
 
   // Reset UI state
@@ -127,7 +126,6 @@ function _stockSetStatus(state, match) {
   const banner  = document.getElementById("fStockInfoBanner");
   const priceRow = document.getElementById("fStockPriceRow");
   const totalBox = document.getElementById("fStockTotalBox");
-  const expiryRow = document.getElementById("fStockExpiryRow");
 
   if (state === "idle") {
     if (icon) icon.textContent = "";
@@ -161,7 +159,7 @@ function _stockSetStatus(state, match) {
   }
 }
 
-/* Show/hide price+expiry+total depending on IN vs OUT */
+/* Show/hide price+total depending on IN vs OUT */
 function onStockTypeChange() {
   const type = document.getElementById("fStockType")?.value;
   _stockUpdateTypeUI(type);
@@ -172,19 +170,16 @@ function _stockUpdateTypeUI(type) {
   const priceRow  = document.getElementById("fStockPriceRow");
   const costRow   = document.getElementById("fStockCostRow");
   const totalBox  = document.getElementById("fStockTotalBox");
-  const expiryRow = document.getElementById("fStockExpiryRow");
   const qtyLabel  = document.getElementById("fStockQtyLabel");
 
   if (type === "OUT") {
     if (priceRow)  priceRow.style.display  = "none";
     if (costRow)   costRow.style.display   = "none";
     if (totalBox)  totalBox.style.display  = "none";
-    if (expiryRow) expiryRow.style.display = "none";
     if (qtyLabel)  qtyLabel.textContent    = "Quantity to Remove";
   } else {
     if (priceRow)  priceRow.style.display  = "";
     if (costRow)   costRow.style.display   = "";
-    if (expiryRow) expiryRow.style.display = "";
     if (qtyLabel)  qtyLabel.textContent    = "Quantity Received";
     _stockComputeTotal();
   }
@@ -241,13 +236,12 @@ async function saveStockMovement() {
     // Stock IN — new FIFO batch with potentially updated price/cost
     const newPrice  = parseFloat(document.getElementById("fStockPrice")?.value) || itemBatches[0].price;
     const newCost   = parseFloat(document.getElementById("fStockCost")?.value);
-    const newExpiry = document.getElementById("fStockExpiry")?.value || itemBatches[0].expiry;
     const maxBatch  = itemBatches.reduce((m, i) => Math.max(m, i.batchNo), 0);
     const ref       = itemBatches[0];
 
     const newBatch = {
       id: ref.id, name: ref.name, category: ref.category, unit: ref.unit,
-      price: newPrice, cost: !isNaN(newCost) ? newCost : (ref.cost ?? 0), expiry: newExpiry,
+      price: newPrice, cost: !isNaN(newCost) ? newCost : (ref.cost ?? 0),
       qty, dateAdded: date, batchNo: maxBatch + 1
     };
     inventory.push(newBatch);

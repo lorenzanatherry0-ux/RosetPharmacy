@@ -394,12 +394,7 @@ function renderInventoryReport(from, to, catFilter, sortBy) {
     const reorder  = ref.reorder || 0;
     const isLow    = totalQty > 0 && totalQty <= reorder;
     const isOut    = totalQty === 0;
-    const nearExp  = batches.some(b => {
-      const d = Math.ceil((new Date(b.expiry)-new Date())/86400000);
-      return d <= 90 && d > 0;
-    });
-    const hasExp   = batches.some(b => new Date(b.expiry) < new Date());
-    return { id, ref, batches, totalQty, value, isLow, isOut, nearExp, hasExp };
+    return { id, ref, batches, totalQty, value, isLow, isOut };
   });
   sortedInv = sortBy === "name"
     ? sortedInv.sort((a,b) => a.ref.category.localeCompare(b.ref.category) || a.id.localeCompare(b.id))
@@ -411,11 +406,6 @@ function renderInventoryReport(from, to, catFilter, sortBy) {
       : item.isLow
         ? `<span class="tag tag-warn">Low</span>`
         : `<span class="tag tag-green">OK</span>`;
-    const expTag = item.hasExp
-      ? `<span class="tag tag-red">Expired</span>`
-      : item.nearExp
-        ? `<span class="tag tag-warn">Expiring Soon</span>`
-        : "";
     return `<tr class="${item.isOut ? "critical-stock" : item.isLow ? "low-stock" : ""}">
       <td><span class="mono" style="font-size:12px">${item.id}</span></td>
       <td style="font-weight:600">${item.ref.name}</td>
@@ -424,7 +414,7 @@ function renderInventoryReport(from, to, catFilter, sortBy) {
       <td style="text-align:right">₱${item.ref.price.toFixed(2)}</td>
       <td style="text-align:right;font-weight:600;color:var(--green-dark)">₱${item.value.toFixed(2)}</td>
       <td style="text-align:right;color:var(--text-soft)">${item.ref.reorder}</td>
-      <td>${statusTag} ${expTag}</td>
+      <td>${statusTag}</td>
     </tr>`;
   }).join("") || `<tr><td colspan="8" class="rpt-empty">No items found${catFilter ? ` in "${catFilter}"` : ""}.</td></tr>`;
 

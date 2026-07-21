@@ -357,7 +357,7 @@
               <thead><tr>
                 <th>Item Code</th><th>Name</th><th>Category</th>
                 <th>Qty</th><th>Unit</th><th>Price</th>
-                <th>Date Added</th><th>Expiry</th><th>FIFO</th>
+                <th>Date Added</th><th>FIFO</th>
                 <th>Status</th><th>Actions</th>
               </tr></thead>
               <tbody id="inventoryTable"></tbody>
@@ -768,7 +768,7 @@
       </div>
       <div class="form-row">
         <div class="form-group-m">
-          <label>Item Code</label>
+          <label>Item Code <span style="font-size:10px;color:var(--text-soft);font-weight:400">— optional, auto-generated if left blank</span></label>
           <input type="text" id="fItemCode" placeholder="e.g. MED011"/>
         </div>
         <div class="form-group-m">
@@ -777,41 +777,38 @@
         </div>
       </div>
       <div class="form-group-m">
-        <label>Item Name</label>
+        <label>Item Name *</label>
         <input type="text" id="fItemName" placeholder="e.g. Amoxicillin 500mg"/>
       </div>
       <div class="form-row">
         <div class="form-group-m">
-          <label>Quantity</label>
+          <label>Quantity <span style="font-size:10px;color:var(--text-soft);font-weight:400">— optional, can adjust later</span></label>
           <input type="number" id="fItemQty" min="0" placeholder="0"/>
         </div>
         <div class="form-group-m">
-          <label>Unit</label>
+          <label>Unit <span style="font-size:10px;color:var(--text-soft);font-weight:400">— optional</span></label>
           <input type="text" id="fItemUnit" placeholder="tablet / capsule / bottle"/>
         </div>
       </div>
       <div class="form-row">
         <div class="form-group-m">
-          <label>Price (₱) <span style="font-size:10px;color:var(--text-soft);font-weight:400">— selling price</span></label>
+          <label>Price (₱) <span style="font-size:10px;color:var(--text-soft);font-weight:400">— selling price, optional</span></label>
           <input type="number" id="fItemPrice" min="0" step="0.01" placeholder="0.00"/>
         </div>
         <div class="form-group-m">
-          <label>Cost (₱) <span style="font-size:10px;color:var(--text-soft);font-weight:400">— acquisition cost, used for profit</span></label>
+          <label>Cost (₱) <span style="font-size:10px;color:var(--text-soft);font-weight:400">— acquisition cost, used for profit, optional</span></label>
           <input type="number" id="fItemCost" min="0" step="0.01" placeholder="0.00"/>
         </div>
       </div>
       <div class="form-row">
         <div class="form-group-m">
-          <label>Reorder Level</label>
+          <label>Reorder Level <span style="font-size:10px;color:var(--text-soft);font-weight:400">— optional</span></label>
           <input type="number" id="fItemReorder" min="0" placeholder="e.g. 20"/>
-        </div>
-        <div class="form-group-m">
-          <label>Expiry Date</label>
-          <input type="date" id="fItemExpiry"/>
         </div>
       </div>
       <p style="font-size:11px;color:var(--text-soft);margin-top:4px">
-        💡 Editing an existing batch only updates name/price/category/expiry — not quantity.
+        💡 Only <strong>Item Name</strong> is required — everything else can be filled in or adjusted later.
+        Editing an existing batch only updates name/price/category — not quantity.
         Tick the checkbox above to add incoming stock as a new FIFO batch.
       </p>
     </div>
@@ -904,12 +901,6 @@
           <span style="position:absolute;left:10px;top:50%;transform:translateY(-50%);color:var(--text-soft);font-weight:700;pointer-events:none">₱</span>
           <input type="number" id="fStockCost" min="0" step="0.01" placeholder="0.00" style="padding-left:22px"/>
         </div>
-      </div>
-
-      <!-- Expiry (Stock IN only) -->
-      <div class="form-group-m" id="fStockExpiryRow">
-        <label>Expiry Date <span style="font-size:10px;color:var(--text-soft);font-weight:400">— for this incoming batch</span></label>
-        <input type="date" id="fStockExpiry"/>
       </div>
 
       <!-- Live total (Stock IN only) -->
@@ -1069,8 +1060,9 @@
           <button onclick="_hideCsvPane()" style="background:none;border:none;cursor:pointer;color:var(--text-soft);font-size:18px;line-height:1">×</button>
         </div>
         <div style="font-size:12px;color:var(--text-mid);margin-bottom:10px;line-height:1.6">
-          <strong>New Items format:</strong> <code style="background:#fff;padding:1px 6px;border-radius:4px;font-size:11px">code, name, category, qty, unit, price, cost, reorder, expiry</code><br>
-          <strong>Restock format:</strong> <code style="background:#fff;padding:1px 6px;border-radius:4px;font-size:11px">name, qty, expiry, remarks</code>
+          <strong>New Items format:</strong> <code style="background:#fff;padding:1px 6px;border-radius:4px;font-size:11px">name, category, qty, unit, price, cost, reorder, code</code>
+          — only <strong>name</strong> is required, so you can even paste just a plain list of item names, one per line.<br>
+          <strong>Restock format:</strong> <code style="background:#fff;padding:1px 6px;border-radius:4px;font-size:11px">name, qty, remarks</code>
           &nbsp;— the first row can be a header (it will be skipped automatically).
         </div>
         <div style="display:flex;gap:10px;align-items:flex-start">

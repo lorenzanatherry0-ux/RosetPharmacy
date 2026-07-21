@@ -84,13 +84,13 @@ function _updateModeUI() {
 }
 
 function _newItemHeaders() {
-  const cols = ["#", "Item Code *", "Name *", "Category", "Qty *", "Unit *", "Price ₱", "Cost ₱", "Reorder Lvl", "Expiry *", ""];
-  return cols.map((c, i) => `<th style="${_thStyle(i === 0 || i === 10)}">${c}</th>`).join("");
+  const cols = ["#", "Item Code", "Name *", "Category", "Qty", "Unit", "Price ₱", "Cost ₱", "Reorder Lvl", ""];
+  return cols.map((c, i) => `<th style="${_thStyle(i === 0 || i === 9)}">${c}</th>`).join("");
 }
 
 function _restockHeaders() {
-  const cols = ["#", "Item Name *", "Item Code (auto)", "Qty to Add *", "Expiry *", "Supplier / Remarks", ""];
-  return cols.map((c, i) => `<th style="${_thStyle(i === 0 || i === 6)}">${c}</th>`).join("");
+  const cols = ["#", "Item Name *", "Item Code (auto)", "Qty to Add *", "Supplier / Remarks", ""];
+  return cols.map((c, i) => `<th style="${_thStyle(i === 0 || i === 5)}">${c}</th>`).join("");
 }
 
 function _thStyle(narrow) {
@@ -135,7 +135,6 @@ function _newItemRowHtml(rid, code) {
     <td style="padding:4px"><input id="bPrice_${rid}"  class="bulk-cell" type="number" min="0" step="0.01" placeholder="0.00"  oninput="onBulkInput(${rid})" style="width:78px;text-align:right"/></td>
     <td style="padding:4px"><input id="bCost_${rid}"   class="bulk-cell" type="number" min="0" step="0.01" placeholder="0.00"  oninput="onBulkInput(${rid})" style="width:78px;text-align:right"/></td>
     <td style="padding:4px"><input id="bReorder_${rid}" class="bulk-cell" type="number" min="0" placeholder="0" oninput="onBulkInput(${rid})" style="width:66px;text-align:right"/></td>
-    <td style="padding:4px"><input id="bExpiry_${rid}" class="bulk-cell" type="date"                               oninput="onBulkInput(${rid})" style="width:128px"/></td>
     <td style="padding:4px 8px;text-align:center">${_deleteBtn(rid)}</td>`;
 }
 
@@ -167,7 +166,6 @@ function _restockRowHtml(rid) {
     </td>
 
     <td style="padding:4px"><input id="bQty_${rid}"     class="bulk-cell" type="number" min="1" placeholder="0"                  oninput="onBulkInput(${rid})" style="width:80px;text-align:right"/></td>
-    <td style="padding:4px"><input id="bExpiry_${rid}"  class="bulk-cell" type="date"                                              oninput="onBulkInput(${rid})" style="width:136px"/></td>
     <td style="padding:4px"><input id="bRemarks_${rid}" class="bulk-cell" type="text"   placeholder="e.g. Supplier X, Lot A1"                                    style="width:200px"/></td>
     <td style="padding:4px 8px;text-align:center">${_deleteBtn(rid)}</td>`;
 }
@@ -274,7 +272,6 @@ function getRowValues(rid) {
     price  : parseFloat(document.getElementById(`bPrice_${rid}`)?.value) || 0,
     cost   : parseFloat(document.getElementById(`bCost_${rid}`)?.value)  || 0,
     reorder: parseInt(document.getElementById(`bReorder_${rid}`)?.value) || 0,
-    expiry : (document.getElementById(`bExpiry_${rid}`)?.value  || ""),
     remarks: (document.getElementById(`bRemarks_${rid}`)?.value || "").trim(),
   };
 }
@@ -283,7 +280,7 @@ function isRowEmpty(rid) {
   const v = getRowValues(rid);
   if (bulkMode === "restock")
     return !v.name && v.qty === 0;
-  return !v.name && !v.unit && !v.expiry && v.qty === 0 && v.price === 0;
+  return !v.name && !v.unit && v.qty === 0 && v.price === 0;
 }
 
 function isRowValid(rid) {
@@ -291,9 +288,11 @@ function isRowValid(rid) {
   if (bulkMode === "restock") {
     // Name must have resolved to a known item (code auto-filled)
     const exists = v.code && inventory.find(i => i.id === v.code);
-    return !!v.name && !!exists && v.qty > 0 && !!v.expiry;
+    return !!v.name && !!exists && v.qty > 0;
   }
-  return !!v.code && !!v.name && !!v.unit && !!v.expiry && v.qty > 0;
+  // New items: only the name is required — everything else (code, unit,
+  // price, cost, reorder, quantity) can be filled in or adjusted later.
+  return !!v.name;
 }
 
 function validateBulkRow(rid) {
@@ -309,15 +308,10 @@ function validateBulkRow(rid) {
     fields = [
       { id: `bName_${rid}`,   ok: !!v.name && !!exists },
       { id: `bQty_${rid}`,    ok: v.qty > 0 },
-      { id: `bExpiry_${rid}`, ok: !!v.expiry },
     ];
   } else {
     fields = [
-      { id: `bCode_${rid}`,   ok: !!v.code },
       { id: `bName_${rid}`,   ok: !!v.name },
-      { id: `bUnit_${rid}`,   ok: !!v.unit },
-      { id: `bExpiry_${rid}`, ok: !!v.expiry },
-      { id: `bQty_${rid}`,    ok: v.qty > 0 },
     ];
   }
 
@@ -332,7 +326,7 @@ function validateBulkRow(rid) {
 }
 
 function _clearRowErrors(rid) {
-  ["bCode","bName","bUnit","bExpiry","bQty","bPrice","bCost"].forEach(prefix => {
+  ["bCode","bName","bUnit","bQty","bPrice","bCost"].forEach(prefix => {
     const el = document.getElementById(`${prefix}_${rid}`);
     if (el) { el.style.borderColor = ""; el.style.background = ""; }
   });
@@ -369,15 +363,14 @@ async function saveBulkItems() {
     const v = getRowValues(rid);
     const label = `Row ${i + 1}`;
 
-    if (!v.expiry)  errors.push(`${label}: Expiry date is required.`);
-    if (v.qty <= 0) errors.push(`${label}: Quantity must be > 0.`);
+    if (bulkMode === "restock") {
+      if (v.qty <= 0) errors.push(`${label}: Quantity must be > 0.`);
+    }
 
     if (bulkMode === "new") {
-      if (!v.code) errors.push(`${label}: Item code is required.`);
       if (!v.name) errors.push(`${label}: Name is required.`);
-      if (!v.unit) errors.push(`${label}: Unit is required.`);
-      if (inventory.find(i => i.id === v.code))        errors.push(`${label}: Code "${v.code}" already exists. Use Restock mode to add stock.`);
-      if (codesInBatch.includes(v.code))               errors.push(`${label}: Duplicate code "${v.code}" in this batch.`);
+      if (v.code && inventory.find(i => i.id === v.code))    errors.push(`${label}: Code "${v.code}" already exists. Use Restock mode to add stock.`);
+      if (v.code && codesInBatch.includes(v.code))            errors.push(`${label}: Duplicate code "${v.code}" in this batch.`);
     } else {
       if (!v.name) errors.push(`${label}: Item name is required — start typing to search.`);
       const exists = v.code && inventory.find(i => i.id === v.code);
@@ -402,23 +395,26 @@ async function saveBulkItems() {
     const v = getRowValues(rid);
 
     if (bulkMode === "new") {
+      if (!v.code) v.code = nextItemCode(codesInBatch);
       const newItem = {
         id: v.code, name: v.name, category: v.cat, qty: v.qty,
-        unit: v.unit, price: v.price, cost: v.cost, expiry: v.expiry, reorder: v.reorder,
+        unit: v.unit, price: v.price, cost: v.cost, reorder: v.reorder,
         dateAdded: today(), batchNo: 1
       };
       inventory.push(newItem);
 
-      const logEntry = {
-        id: "LOG" + String(stockLog.length + 1).padStart(3, "0"),
-        date: today(), itemId: v.code, itemName: v.name,
-        type: "IN", qty: v.qty, remarks: "Bulk new-item entry", by: currentUser.name
-      };
-      stockLog.push(logEntry);
+      if (v.qty > 0) {
+        const logEntry = {
+          id: "LOG" + String(stockLog.length + 1).padStart(3, "0"),
+          date: today(), itemId: v.code, itemName: v.name,
+          type: "IN", qty: v.qty, remarks: "Bulk new-item entry", by: currentUser.name
+        };
+        stockLog.push(logEntry);
+        await sbInsertStockLog(logEntry).catch(() => {});
+      }
 
       // Supabase sync
       await sbUpsertInventoryItem(newItem).catch(() => {});
-      await sbInsertStockLog(logEntry).catch(() => {});
 
     } else {
       // RESTOCK: add as new FIFO batch
@@ -428,7 +424,7 @@ async function saveBulkItems() {
 
       const newBatch = {
         id: ref.id, name: ref.name, category: ref.category, unit: ref.unit,
-        price: ref.price, cost: ref.cost ?? 0, expiry: v.expiry,
+        price: ref.price, cost: ref.cost ?? 0,
         qty: v.qty, dateAdded: today(), batchNo: maxBatch + 1
       };
       inventory.push(newBatch);
@@ -463,10 +459,11 @@ async function saveBulkItems() {
 
 /* ══════════════════════════════════════════════
    CSV IMPORT
-   Accepted format (new items):
-     code,name,category,qty,unit,price,reorder,expiry
+   Accepted format (new items) — only "name" is required,
+   everything else can be left blank and filled in later:
+     name,category,qty,unit,price,cost,reorder,code
    Accepted format (restock):
-     code,qty,expiry,remarks
+     name,qty,remarks
 ══════════════════════════════════════════════ */
 function _showCsvPane() {
   document.getElementById("bulkCsvPane").classList.remove("hidden");
@@ -498,7 +495,7 @@ function applyBulkCsv() {
 
   const lines = raw.split(/\r?\n/).filter(l => l.trim());
   // Skip header row if first cell looks like a header
-  const startIdx = /^code|^item/i.test(lines[0]) ? 1 : 0;
+  const startIdx = /^code|^item|^name/i.test(lines[0]) ? 1 : 0;
   const dataLines = lines.slice(startIdx);
 
   if (dataLines.length === 0) { toast("warn", "No data rows found."); return; }
@@ -511,7 +508,7 @@ function applyBulkCsv() {
   let imported = 0;
   dataLines.forEach(line => {
     const cells = _parseCsvLine(line);
-    if (cells.length < 2) return;  // skip blank/sparse
+    if (cells.length < 1 || !cells.some(c => c.trim())) return;  // skip fully blank lines
 
     const rid = ++bulkRowIdCounter;
     bulkRows.push(rid);
@@ -521,19 +518,20 @@ function applyBulkCsv() {
     tr.style.cssText = "transition:background .15s";
 
     if (bulkMode === "restock") {
-      // New column order (name-first): name, qty, expiry, remarks (optional)
-      const [name="", qty="", expiry="", ...rest] = cells;
+      // name, qty, remarks (all optional except name)
+      const [name="", qty="", ...rest] = cells;
       tr.innerHTML = _restockRowHtml(rid);
       tbody.appendChild(tr);
       _setVal(`bName_${rid}`,    name.trim());
       _setVal(`bQty_${rid}`,     qty.trim());
-      _setVal(`bExpiry_${rid}`,  expiry.trim());
       _setVal(`bRemarks_${rid}`, rest.join(",").trim());
       // Trigger the name lookup so the Code field auto-fills
       onRestockNameInput(rid);
     } else {
-      // Expected: code, name, category, qty, unit, price, cost, reorder, expiry
-      const [code="", name="", cat="", qty="", unit="", price="", cost="", reorder="", expiry=""] = cells;
+      // Only "name" is required — a single-column paste of item names
+      // (copied straight from another system) works fine here.
+      // Full format: name, category, qty, unit, price, cost, reorder, code
+      const [name="", cat="", qty="", unit="", price="", cost="", reorder="", code=""] = cells;
       const autoCode = code.trim().toUpperCase() || nextItemCodeForBatch();
       tr.innerHTML = _newItemRowHtml(rid, autoCode);
       tbody.appendChild(tr);
@@ -545,7 +543,6 @@ function applyBulkCsv() {
       _setVal(`bPrice_${rid}`,   price.trim());
       _setVal(`bCost_${rid}`,    cost.trim());
       _setVal(`bReorder_${rid}`, reorder.trim());
-      _setVal(`bExpiry_${rid}`,  expiry.trim());
     }
 
     _attachTabNav(tr);
@@ -581,9 +578,9 @@ function _parseCsvLine(line) {
 function downloadCsvTemplate() {
   let csv;
   if (bulkMode === "restock") {
-    csv = "name,qty,expiry,remarks\n\"Paracetamol 500mg\",100,2027-12-31,\"Supplier ABC Lot 1\"\n\"Amoxicillin 500mg\",200,2027-06-30,\"Monthly delivery\"\n";
+    csv = "name,qty,remarks\n\"Paracetamol 500mg\",100,\"Supplier ABC Lot 1\"\n\"Amoxicillin 500mg\",200,\"Monthly delivery\"\n";
   } else {
-    csv = "code,name,category,qty,unit,price,cost,reorder,expiry\nMED011,\"Aspirin 100mg\",\"Generics\",150,tablet,4.50,2.70,30,2027-12-31\nMED012,\"Vitamin D3 1000IU\",\"Self Care\",80,capsule,12.00,7.00,20,2027-08-01\n";
+    csv = "name,category,qty,unit,price,cost,reorder,code\n\"Aspirin 100mg\",\"Generics\",150,tablet,4.50,2.70,30,\n\"Vitamin D3 1000IU\",\"Self Care\",80,capsule,12.00,7.00,20,\n\"Cotton Buds (Box)\",\"Medical Supplies\",,,,,,\n";
   }
   const a   = document.createElement("a");
   a.href    = "data:text/csv;charset=utf-8," + encodeURIComponent(csv);

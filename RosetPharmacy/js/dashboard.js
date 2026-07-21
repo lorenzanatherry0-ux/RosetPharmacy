@@ -1,7 +1,7 @@
 /* ══════════════════════════════════════════════
    dashboard.js — Dashboard stats, recent txns,
                   and alert modals (Out of Stock
-                  + Low Stock + Expiry Alerts)
+                  + Low Stock Alerts)
    Clean design: no inline alert clutter.
    Alerts live inside clickable stat cards that
    pop a focused modal when clicked.

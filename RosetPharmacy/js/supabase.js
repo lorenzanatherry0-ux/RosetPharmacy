@@ -128,7 +128,6 @@ function toDbInventory(item) {
     unit:       item.unit,
     price:      item.price,
     cost:       item.cost ?? 0,
-    expiry:     item.expiry || null,
     reorder:    item.reorder || 0,
     date_added: item.dateAdded || null,
   };
@@ -144,7 +143,6 @@ function fromDbInventory(row) {
     unit:      row.unit,
     price:     parseFloat(row.price),
     cost:      parseFloat(row.cost || 0),
-    expiry:    row.expiry,
     reorder:   row.reorder || 0,
     dateAdded: row.date_added,
   };
